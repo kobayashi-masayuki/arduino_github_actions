@@ -33,7 +33,7 @@ jobs:
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           sketch-paths: |
-            tests/**/*.ino
+            tests
           sketches-report-path: "sketches-reports"
           enable-deltas-report: true
           enable-warnings-report: true
