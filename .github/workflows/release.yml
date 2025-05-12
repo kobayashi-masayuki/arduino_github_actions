@@ -30,7 +30,8 @@ jobs:
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v2
         with:
-          version: latest
+            version: "latest"
+            token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install ESP32 platform
         run: |
