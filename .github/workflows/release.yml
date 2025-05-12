@@ -11,12 +11,13 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    name: 'test: ${{matrix.board.name}}'
+    name: 'build: ${{matrix.board.name}}'
     runs-on: ubuntu-latest
-    permissions:
-        contents: read 
     strategy:
         fail-fast: false
         matrix:
@@ -33,6 +34,12 @@ jobs:
         run: |
             echo "GITHUB_TOKEN is set? -> ${{ secrets.GITHUB_TOKEN != '' }}"
             gh auth status || echo "gh CLI not installed"
+
+      - name: Debug List Arduino CLI releases
+        run: |
+            curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/arduino/arduino-cli/releases | head -n 20
 
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v2
