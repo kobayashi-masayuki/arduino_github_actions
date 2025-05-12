@@ -34,7 +34,7 @@ jobs:
           enable-warnings-report: true
 
       - name: Upload compile report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: test-compile-report
           path: sketches-reports
