@@ -22,5 +22,5 @@ jobs:
       - name: Run Arduino Lint Action
         uses: arduino/arduino-lint-action@v2
         with:
-          path: test,release
+          path: .
           recursive: true
