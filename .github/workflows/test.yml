@@ -12,24 +12,24 @@ on:
   workflow_dispatch:
 
 jobs:
-  formatting-check:
-    name: Formatting Check
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        path:
-          - test
-          - release
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+#   formatting-check:
+#     name: Formatting Check
+#     runs-on: ubuntu-latest
+#     strategy:
+#       matrix:
+#         path:
+#           - test
+#           - release
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
 
-      - name: Run clang-format style check for C/C++/Protobuf programs
-        uses: jidicula/clang-format-action@v4.15.0
-        with:
-          clang-format-version: '20'
-          check-path: ${{ matrix.path }}
-          fallback-style: 'Google'  # optional
+#       - name: Run clang-format style check for C/C++/Protobuf programs
+#         uses: jidicula/clang-format-action@v4.15.0
+#         with:
+#           clang-format-version: '20'
+#           check-path: ${{ matrix.path }}
+#           fallback-style: 'Google'  # optional
 
   cpplint:
     name: C++ Style Check (cpplint)

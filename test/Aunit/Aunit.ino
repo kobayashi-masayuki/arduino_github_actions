@@ -5,6 +5,8 @@
 
 #include <AUnit.h>
 
+const char* msg = "This is a very long string literal that certainly exceeds the eighty character limit imposed by the style guide.";
+
 test(correct) {
   int x = 1;
   assertEqual(x, 1);
@@ -14,11 +16,6 @@ test(incorrect) {
   int x = 1;
   assertNotEqual(x, 1);
 }
-
-void foo() {
-  \tint x;  // タブ文字を使っている
-      x = 1; // スペースと混在
-  }
 
 //----------------------------------------------------------------------------
 // setup() and loop()
