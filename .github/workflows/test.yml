@@ -19,10 +19,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run Arduino Lint Action
-        uses: arduino/arduino-lint-action@v2
+      # 2. Python 環境をセットアップ
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          path: .
-          recursive: true
-          project-type: sketch
-          compliance: specification
+          python-version: '3.x'
+
+      # 3. cpplint をインストール
+      - name: Install cpplint
+        run: |
+          python -m pip install --upgrade pip
+          pip install cpplint
+
+      # 4. Arduino スケッチ (*.ino) を含む C/C++ ファイルを対象に lint を実行
+      #    "copyright" ルールを除外するため --filter=-legal/copyright を追加
+      - name: Run cpplint
+        run: |
+          echo "Checking C/C++/Arduino files with cpplint (excluding copyright)..."
+          ERR=0
+          for file in $(find . -type f \( -name '*.ino' -o -name '*.cpp' -o -name '*.h' \)); do
+            echo "Linting $file"
+            cpplint --filter=-legal/copyright --extensions=h,cpp,ino "$file" || ERR=1
+          done
+          if [ $ERR -ne 0 ]; then
+            echo "::error ::cpplint found style violations. Please fix them."
+            exit 1
+          fi
