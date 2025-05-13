@@ -22,9 +22,5 @@ jobs:
       - name: Run Arduino Lint Action
         uses: arduino/arduino-lint-action@v2
         with:
-          # Path(s) where your .ino sketches live
-          path: |
-            test
-            release
-          # Recurse into those directories to find nested projects
+          path: test,release
           recursive: true
