@@ -81,7 +81,7 @@ jobs:
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           sketch-paths: |
-            tests
+            test
             release
           libraries: |
             AUnit
