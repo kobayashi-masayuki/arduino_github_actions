@@ -55,7 +55,7 @@ void loop() {
           Serial.print("WPA2");
           break;
         case WIFI_AUTH_WPA_WPA2_PSK:
-          Serial.print("WPA+WPA2");
+           Serial.print("WPA+WPA2");
           break;
         case WIFI_AUTH_WPA2_ENTERPRISE:
           Serial.print("WPA2-EAP");
