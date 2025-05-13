@@ -36,5 +36,3 @@ void setup() {
       F("1 passed, 1 failed, 0 skipped, 0 timed out, out of 2 test(s)."));
   Serial.println(F("----"));
 }
-
-void loop() { aunit::TestRunner::run(); }
