@@ -34,6 +34,7 @@ jobs:
           platforms: ${{ matrix.board.platforms }}
           sketch-paths: |
             tests
+            release
           sketches-report-path: "sketches-reports"
           enable-deltas-report: true
           enable-warnings-report: true
