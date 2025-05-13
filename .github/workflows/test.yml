@@ -24,4 +24,5 @@ jobs:
         with:
           path: .
           recursive: true
-          compliance: strict
+          project-type: sketch
+          compliance: specification
