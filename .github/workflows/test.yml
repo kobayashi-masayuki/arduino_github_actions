@@ -21,12 +21,6 @@ jobs:
           - test
           - release
     steps:
-      - name: Set environment variables
-        run: |
-          # See: https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#setting-an-environment-variable
-          echo "CLANG_FORMAT_INSTALL_PATH=${{ runner.temp }}/clang-format" >> "$GITHUB_ENV"
-          echo "REVIEWDOG_INSTALL_PATH=${{ runner.temp }}/reviewdog" >> "$GITHUB_ENV"
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -36,24 +30,6 @@ jobs:
           clang-format-version: '20'
           check-path: ${{ matrix.path }}
           fallback-style: 'Google' # optional
-
-      - name: Install Reviewdog
-        run: |
-          wget -O - -q https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh \
-            | sh -s -- -b ${{ env.REVIEWDOG_INSTALL_PATH }}
-          echo "${{ env.REVIEWDOG_INSTALL_PATH }}" >> "$GITHUB_PATH"
-
-      - name: Check formatting
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if ! git diff --color --exit-code; then
-            git diff | reviewdog -f=diff -name="format-check" -reporter=github-pr-review
-            echo "Please do an Auto Format on the sketches:"
-            echo "Arduino IDE: Tools > Auto Format"
-            echo "Arduino Web Editor: Ctrl + B"
-            exit 1
-          fi
 
   test:
     name: 'test: ${{ matrix.board.fqbn }}'
