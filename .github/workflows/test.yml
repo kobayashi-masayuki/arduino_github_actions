@@ -53,7 +53,6 @@ jobs:
             -whitespace/operators,
             -whitespace/parens,
             -whitespace/tab,
-            -whitespace/line_length,
             -build/header_guard
           targets: |
             test
