@@ -29,12 +29,39 @@ jobs:
         with:
           clang-format-version: '20'
           check-path: ${{ matrix.path }}
-          fallback-style: 'Google' # optional
+          fallback-style: 'Google'  # optional
 
-  test:
+  cpplint:
+    name: C++ Style Check (cpplint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run cpplint via Reviewdog
+        uses: reviewdog/action-cpplint@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+          flags: --extensions=h,hpp,c,cpp,cc,cu,hh,ipp,ino
+          filter: >-
+            -readability/braces,
+            -whitespace/braces,
+            -whitespace/comments,
+            -whitespace/indent,
+            -whitespace/newline,
+            -whitespace/operators,
+            -whitespace/parens,
+            -whitespace/tab,
+            -whitespace/line_length,
+            -build/header_guard
+
+  build:
     name: 'test: ${{ matrix.board.fqbn }}'
     runs-on: ubuntu-latest
-    needs: formatting-check
+    needs:
+      - formatting-check
+      - cpplint
     strategy:
       fail-fast: false
       matrix:
