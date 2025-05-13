@@ -44,16 +44,16 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-review
           flags: --extensions=h,hpp,c,cpp,cc,cu,hh,ipp,ino
-          filter: >-
-            -readability/braces,
-            -whitespace/braces,
-            -whitespace/comments,
-            -whitespace/indent,
-            -whitespace/newline,
-            -whitespace/operators,
-            -whitespace/parens,
-            -whitespace/tab,
-            -build/header_guard
+        #   filter: >-
+        #     -readability/braces,
+        #     -whitespace/braces,
+        #     -whitespace/comments,
+        #     -whitespace/indent,
+        #     -whitespace/newline,
+        #     -whitespace/operators,
+        #     -whitespace/parens,
+        #     -whitespace/tab,
+        #     -build/header_guard
           targets: |
             test
             release
