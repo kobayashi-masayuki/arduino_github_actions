@@ -39,13 +39,14 @@ jobs:
           echo "$HOME/bin" >> $GITHUB_PATH
 
       # 5. cpplint を実行して Reviewdog で結果を PR にコメント
-      - name: Run cpplint via Reviewdog
+      - name: Run cpplint and report via Reviewdog
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           find . -type f \( -name '*.ino' -o -name '*.cpp' -o -name '*.h' \) \
             | xargs cpplint --filter=-legal/copyright --extensions=h,cpp,ino 2>&1 \
-            | reviewdog -f=cpplint \
-                        -name="arduino-cpplint" \
-                        -reporter=github-pr-review \
-                        -fail-on-error=true
+            | reviewdog \
+                -efm="%f:%l: %m" \
+                -name="arduino-cpplint" \
+                -reporter=github-pr-review \
+                -fail-on-error=true
