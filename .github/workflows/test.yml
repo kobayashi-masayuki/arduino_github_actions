@@ -24,3 +24,4 @@ jobs:
         with:
           path: .
           recursive: true
+          compliance: strict
