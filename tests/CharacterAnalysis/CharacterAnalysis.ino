@@ -17,7 +17,7 @@ void setup() {
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
   while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
+    ;  // wait for serial port to connect. Needed for native USB port only
   }
 
   // send an intro:
@@ -74,7 +74,8 @@ void loop() {
       Serial.println("it's upper case");
     }
     if (isHexadecimalDigit(thisChar)) {
-      Serial.println("it's a valid hexadecimaldigit (i.e. 0 - 9, a - F, or A - F)");
+      Serial.println(
+          "it's a valid hexadecimaldigit (i.e. 0 - 9, a - F, or A - F)");
     }
 
     // add some space and ask for another byte:
