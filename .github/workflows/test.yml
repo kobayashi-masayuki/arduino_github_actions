@@ -31,17 +31,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install cpplint
 
-      # 4. Arduino スケッチ (*.ino) を含む C/C++ ファイルを対象に lint を実行
-      #    "copyright" ルールを除外するため --filter=-legal/copyright を追加
-      - name: Run cpplint
+      # 4. Reviewdog をインストール
+      - name: Install reviewdog
         run: |
-          echo "Checking C/C++/Arduino files with cpplint (excluding copyright)..."
-          ERR=0
-          for file in $(find . -type f \( -name '*.ino' -o -name '*.cpp' -o -name '*.h' \)); do
-            echo "Linting $file"
-            cpplint --filter=-legal/copyright --extensions=h,cpp,ino "$file" || ERR=1
-          done
-          if [ $ERR -ne 0 ]; then
-            echo "::error ::cpplint found style violations. Please fix them."
-            exit 1
-          fi
+          curl -sSL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh \
+            | sh -s -- -b $HOME/bin
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      # 5. cpplint を実行して Reviewdog で結果を PR にコメント
+      - name: Run cpplint via Reviewdog
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          find . -type f \( -name '*.ino' -o -name '*.cpp' -o -name '*.h' \) \
+            | xargs cpplint --filter=-legal/copyright --extensions=h,cpp,ino 2>&1 \
+            | reviewdog -f=cpplint \
+                        -name="arduino-cpplint" \
+                        -reporter=github-pr-review \
+                        -fail-on-error=true
