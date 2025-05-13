@@ -1,13 +1,10 @@
 name: Release Build
 
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
-  push:
-    branches:
-      - main
   pull_request:
-    branches: 
-      - main
+    types:
+        - opened
+        - synchronize
 
   workflow_dispatch:
 
@@ -29,6 +26,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+            ref: ${{ github.head_ref }}
 
       - name: Debug show permissions & token
         run: |
