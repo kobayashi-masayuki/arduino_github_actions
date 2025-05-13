@@ -1,13 +1,10 @@
 name: Test Sketches
 
 on:
-  # Triggers the workflow on push or pull request events but only for the main branch
-  push:
-    branches:
-      - main
   pull_request:
-    branches: 
-      - main
+    types:
+        - opened
+        - synchronize
 
   workflow_dispatch:
 
@@ -19,13 +16,15 @@ jobs:
         fail-fast: false
         matrix:
           board:
-            - fqbn: esp32:esp32:esp32dev
+            - fqbn: esp32:esp32:esp32
               platforms: |
                 - name: esp32:esp32
                   source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+            ref: ${{ github.head_ref }}
 
       - name: Compile all test sketches
         uses: arduino/compile-sketches@v1.1.2
@@ -33,7 +32,10 @@ jobs:
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           sketch-paths: |
-            tests/**/*.ino
+            tests
+            release
+          libraries: |
+            AUnit
           sketches-report-path: "sketches-reports"
           enable-deltas-report: true
           enable-warnings-report: true
