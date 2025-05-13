@@ -3,32 +3,103 @@ name: Test Sketches
 on:
   pull_request:
     types:
-        - opened
-        - synchronize
-
+      - opened
+      - synchronize
   workflow_dispatch:
 
 jobs:
-  test:
-    name: 'test: ${{matrix.board.name}}'
+  check-formatting:
     runs-on: ubuntu-latest
+
+    env:
+      # See: https://github.com/arduino/arduino-ide/blob/main/arduino-ide-extension/package.json
+      CLANG_FORMAT_VERSION: 14.0.0
+
+    steps:
+      - name: Set environment variables
+        run: |
+          # See: https://docs.github.com/actions/using-workflows/workflow-commands-for-github-actions#setting-an-environment-variable
+          echo "CLANG_FORMAT_INSTALL_PATH=${{ runner.temp }}/clang-format" >> "$GITHUB_ENV"
+          echo "REVIEWDOG_INSTALL_PATH=${{ runner.temp }}/reviewdog" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download ClangFormat
+        id: download
+        uses: MrOctopus/download-asset-action@1.0
+        with:
+          repository: arduino/clang-static-binaries
+          tag: ${{ env.CLANG_FORMAT_VERSION }}
+          asset: clang-format_${{ env.CLANG_FORMAT_VERSION }}_Linux_64bit.tar.bz2
+          target: ${{ env.CLANG_FORMAT_INSTALL_PATH }}
+
+      - name: Install ClangFormat
+        run: |
+          cd "${{ env.CLANG_FORMAT_INSTALL_PATH }}"
+          tar --extract --file="${{ steps.download.outputs.name }}"
+          # Add installation to PATH:
+          echo "${{ env.CLANG_FORMAT_INSTALL_PATH }}/clang_Linux_64bit" >> "$GITHUB_PATH"
+
+      - name: Format examples
+        run: |
+          find \
+            \( \
+              -name '*.c' -or \
+              -name '*.cpp' -or \
+              -name '*.h' -or \
+              -name '*.ino' -or \
+              -name '*.ipp' -or \
+              -name '*.tpp' \
+            \) \
+            -type f \
+            -exec \
+              clang-format \
+                --assume-filename=foo.cpp \
+                -i \
+                --style=file \
+                {} \;
+
+      - name: Install Reviewdog
+        run: |
+          wget -O - -q https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh | sh -s -- -b ${{ env.REVIEWDOG_INSTALL_PATH }}
+          echo "${{ env.REVIEWDOG_INSTALL_PATH }}" >> "$GITHUB_PATH"
+
+      - name: Check formatting
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! git diff --color --exit-code; then
+            git diff | reviewdog -f=diff -name="format-check" -reporter=github-pr-review
+            echo "Please do an Auto Format on the sketches:"
+            echo "Arduino IDE: Tools > Auto Format"
+            echo "Arduino Web Editor: Ctrl + B"
+            exit 1
+          fi
+
+  test:
+    name: 'test: ${{ matrix.board.fqbn }}'
+    runs-on: ubuntu-latest
+    needs: check-formatting
     strategy:
-        fail-fast: false
-        matrix:
-          board:
-            - fqbn: esp32:esp32:esp32
-              platforms: |
-                - name: esp32:esp32
-                  source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json      
+      fail-fast: false
+      matrix:
+        board:
+          - fqbn: esp32:esp32:esp32
+            platforms: |
+              - name: esp32:esp32
+                source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-            ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref }}
 
       - name: Compile all test sketches
         uses: arduino/compile-sketches@v1.1.2
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           sketch-paths: |
@@ -36,7 +107,7 @@ jobs:
             release
           libraries: |
             AUnit
-          sketches-report-path: "sketches-reports"
+          sketches-report-path: sketches-reports
           enable-deltas-report: true
           enable-warnings-report: true
 
