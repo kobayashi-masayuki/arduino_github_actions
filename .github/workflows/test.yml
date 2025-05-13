@@ -18,8 +18,8 @@ jobs:
         strategy:
           matrix:
             path:
-              - 'src'
-              - 'examples'
+              - 'test'
+              - 'release'
         steps:
         - uses: actions/checkout@v4
         - name: Run clang-format style check for C/C++/Protobuf programs.
