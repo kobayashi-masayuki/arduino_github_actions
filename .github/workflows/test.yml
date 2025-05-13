@@ -1,42 +1,67 @@
 name: Test Sketches
 
+permissions:
+  contents: read
+  pull-requests: write
+
 on:
   pull_request:
     types:
-        - opened
-        - synchronize
-
+      - opened
+      - synchronize
   workflow_dispatch:
 
 jobs:
-  test:
-    name: 'test: ${{matrix.board.name}}'
+  formatting-check:
+    name: Formatting Check
     runs-on: ubuntu-latest
     strategy:
-        fail-fast: false
-        matrix:
-          board:
-            - fqbn: esp32:esp32:esp32
-              platforms: |
-                - name: esp32:esp32
-                  source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json      
+      matrix:
+        path:
+          - test
+          - release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run clang-format style check for C/C++/Protobuf programs
+        uses: jidicula/clang-format-action@v4.15.0
+        with:
+          clang-format-version: '20'
+          check-path: ${{ matrix.path }}
+          fallback-style: 'Google' # optional
+
+  test:
+    name: 'test: ${{ matrix.board.fqbn }}'
+    runs-on: ubuntu-latest
+    needs: formatting-check
+    strategy:
+      fail-fast: false
+      matrix:
+        board:
+          - fqbn: esp32:esp32:esp32
+            platforms: |
+              - name: esp32:esp32
+                source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-            ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref }}
 
       - name: Compile all test sketches
         uses: arduino/compile-sketches@v1.1.2
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           fqbn: ${{ matrix.board.fqbn }}
           platforms: ${{ matrix.board.platforms }}
           sketch-paths: |
-            tests
+            test
             release
           libraries: |
             AUnit
-          sketches-report-path: "sketches-reports"
+          sketches-report-path: sketches-reports
           enable-deltas-report: true
           enable-warnings-report: true
 

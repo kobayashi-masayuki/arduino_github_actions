@@ -1,10 +1,11 @@
 name: Release Build
 
 on:
-  pull_request:
+  workflow_run:
+    workflows:
+      - "Test Sketches"    # ← test.yml の name と一致させる
     types:
-        - opened
-        - synchronize
+      - completed
 
   workflow_dispatch:
 
