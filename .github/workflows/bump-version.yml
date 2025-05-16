@@ -47,11 +47,21 @@ jobs:
           echo "$NEW_VER" > version.txt
           echo "newver=$NEW_VER" >> $GITHUB_OUTPUT
 
-      - name: Commit version.txt
+      - name: Update current_version in code
+        run: |
+          # release/release.ino の中の const double current_version を置換
+          sed -i -E \
+            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.bump_ver.outputs.newver }}\2|" \
+            release/release.ino
+
+      - name: Commit version bump + code sync
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
+          # version.txt と release/release.ino の両方をコミット
+          file_pattern: |
+            version.txt
+            release/release.ino
           commit_message: "chore: bump version to v${{ steps.bump_ver.outputs.newver }}"
-          file_pattern: version.txt
 
       - name: Push commit and tag
         env:
