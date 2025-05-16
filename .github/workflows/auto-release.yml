@@ -67,6 +67,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Sync local main with origin/main
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
       - name: Read current version
         id: read_ver2
         run: |
