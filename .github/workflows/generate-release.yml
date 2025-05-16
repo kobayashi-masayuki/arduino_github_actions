@@ -1,0 +1,92 @@
+# .github/workflows/generate-release.yml
+name: Generate Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      old_tag:
+        description: '古いタグ（開始点）'
+        required: true
+        type: string
+      new_tag:
+        description: '新しいタグ（終了点・かつ作成するリリースタグ）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Create Release from ${{ github.event.inputs.old_tag }} to ${{ github.event.inputs.new_tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Generate release notes
+        id: make_notes
+        run: |
+          RANGE="${{ github.event.inputs.old_tag }}..${{ github.event.inputs.new_tag }}"
+          LOG=$(git log "$RANGE" --pretty=format:"- %s")
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Skip if release exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.new_tag }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists, skipping."
+            exit 0
+          fi
+
+      - name: Create GitHub Release
+        id: create_rel
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.new_tag }}
+          release_name: Release ${{ github.event.inputs.new_tag }}
+          body: ${{ steps.make_notes.outputs.notes }}
+          draft: false
+          prerelease: false
+
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: '1.2.2'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install ESP32 platform
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Build release sketch
+        run: |
+          mkdir -p release/build
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32 \
+            --build-path release/build \
+            release/release.ino
+
+      - name: Package binaries
+        run: zip -j release-${{ github.event.inputs.new_tag }}.zip release/build/*
+
+      - name: Upload binaries to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_rel.outputs.upload_url }}
+          asset_path: release-${{ github.event.inputs.new_tag }}.zip
+          asset_name: release-${{ github.event.inputs.new_tag }}.zip
+          asset_content_type: application/zip
