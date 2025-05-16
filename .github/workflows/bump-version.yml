@@ -1,0 +1,66 @@
+# .github/workflows/bump-version.yml
+name: Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'どちらのバージョンを上げますか？'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - major
+          - minor
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    name: Bump version & push tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Read current version
+        id: read_ver
+        run: |
+          ver=$(cat version.txt)
+          echo "ver=$ver" >> $GITHUB_OUTPUT
+
+      - name: Calculate next version
+        id: bump_ver
+        run: |
+          IFS='.' read -r MAJ MIN <<< "${{ steps.read_ver.outputs.ver }}"
+          if [ "${{ github.event.inputs.version_type }}" = "major" ]; then
+            MAJ=$((MAJ + 1))
+            MIN=0
+          else
+            MIN=$((MIN + 1))
+          fi
+          NEW_VER="${MAJ}.${MIN}"
+          echo "$NEW_VER" > version.txt
+          echo "newver=$NEW_VER" >> $GITHUB_OUTPUT
+
+      - name: Commit version.txt
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "chore: bump version to v${{ steps.bump_ver.outputs.newver }}"
+          file_pattern: version.txt
+
+      - name: Push commit and tag
+        env:
+          TAG: v${{ steps.bump_ver.outputs.newver }}
+        run: |
+          git push origin HEAD:refs/heads/main
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
