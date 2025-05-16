@@ -50,7 +50,7 @@ jobs:
       - name: Commit synced version
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: chore: sync current_version to v${{ steps.read_ver.outputs.ver }}
+          commit_message: "chore: sync current_version to v${{ steps.read_ver.outputs.ver }}"
           file_pattern: release/release.ino
 
   # ─────────────────────────
@@ -85,7 +85,7 @@ jobs:
       - name: Commit version bump
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          commit_message: chore: bump version to v${{ steps.bump_ver.outputs.newver }}
+          commit_message: "chore: bump version to v${{ steps.bump_ver.outputs.newver }}"
           file_pattern: version.txt
 
       - name: Push bump commit & tag
