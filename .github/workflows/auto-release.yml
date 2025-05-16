@@ -93,8 +93,12 @@ jobs:
           TAG: v${{ steps.bump_ver.outputs.newver }}
         run: |
           git push origin HEAD:main
-          git tag $TAG
-          git push origin $TAG
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
 
   # ─────────────────────────
   # 3. 自動リリースノート生成
