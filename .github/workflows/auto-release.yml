@@ -4,7 +4,17 @@ name: Auto Release
 # ─────────────────────────
 # トリガー
 # ─────────────────────────
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'どちらのバージョンを上げますか？'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - major
+          - minor
 
 permissions:
   contents: write
@@ -74,12 +84,17 @@ jobs:
           ver=$(cat version.txt)
           echo "ver=$ver" >> $GITHUB_OUTPUT
 
-      - name: Calculate next minor version
+      - name: Calculate next version
         id: bump_ver
         run: |
           IFS='.' read -r MAJ MIN <<< "${{ steps.read_ver2.outputs.ver }}"
-          NEW_MIN=$((MIN + 1))
-          NEW_VER="${MAJ}.${NEW_MIN}"
+          if [ "${{ github.event.inputs.version_type }}" = "major" ]; then
+            MAJ=$((MAJ + 1))
+            MIN=0
+          else
+            MIN=$((MIN + 1))
+          fi
+          NEW_VER="${MAJ}.${MIN}"
           echo "$NEW_VER" > version.txt
           echo "newver=$NEW_VER" >> $GITHUB_OUTPUT
 
