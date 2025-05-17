@@ -1,89 +1,56 @@
 name: Bump Version
 
 on:
-  workflow_dispatch:
-    inputs:
-      version_type:
-        description: 'どちらのバージョンを上げますか？'
-        required: true
-        default: 'minor'
-        type: choice
-        options:
-          - major
-          - minor
+  push:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   bump:
-    name: Bump version & Tag
+    name: Bump version & open PR
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout full history
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Ensure version.txt exists
-        run: |
-          test -f version.txt || (echo "version.txt not found" && exit 1)
-
       - name: Read current version
         id: read_ver
         run: |
-          ver=$(cat version.txt)
-          echo "ver=$ver" >> $GITHUB_OUTPUT
-
-      - name: Sync code version
-        run: |
-          # release/release.ino の const double current_version を置換
-          sed -i -E \
-            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.read_ver.outputs.ver }}\2|" \
-            release/release.ino
-
-      - name: Commit synced version
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "chore: sync current_version to v${{ steps.read_ver.outputs.ver }}"
-          file_pattern: release/release.ino
+          echo "ver=$(cat version.txt)" >> $GITHUB_OUTPUT
 
       - name: Calculate next version
-        id: bump_ver
+        id: bump
         run: |
           IFS='.' read -r MAJ MIN <<< "${{ steps.read_ver.outputs.ver }}"
-          if [ "${{ github.event.inputs.version_type }}" = "major" ]; then
-            MAJ=$((MAJ + 1))
-            MIN=0
-          else
-            MIN=$((MIN + 1))
-          fi
-          NEW_VER="${MAJ}.${MIN}"
-          echo "$NEW_VER" > version.txt
-          echo "newver=$NEW_VER" >> $GITHUB_OUTPUT
+          MIN=$((MIN + 1))
+          NEW="${MAJ}.${MIN}"
+          echo "$NEW" > version.txt
+          echo "newver=$NEW" >> $GITHUB_OUTPUT
 
-      - name: Update sketch version
+      - name: Update code version
         run: |
           sed -i -E \
-            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.bump_ver.outputs.newver }}\2|" \
+            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.bump.outputs.newver }}\2|" \
             release/release.ino
-  
-      - name: Commit version bump and sketch update
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "chore: bump version to v${{ steps.bump_ver.outputs.newver }}"
-          file_pattern: |
-              version.txt
-              release/release.ino
 
-      - name: Push commit & create tag
+      - name: Create bump branch & commit
         run: |
-          git push origin HEAD:refs/heads/main
-          TAG="v${{ steps.bump_ver.outputs.newver }}"
-          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists, skipping."
-          else
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
+            git checkout -b bump/v${{ steps.bump.outputs.newver }}
+            git add version.txt release/release.ino
+            git commit -m "chore: bump version to v${{ steps.bump.outputs.newver }}"
+            git push --set-upstream origin bump/v${{ steps.bump.outputs.newver }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+            token: ${{ secrets.GITHUB_TOKEN }}
+            commit-message: "chore: bump version to v${{ steps.bump.outputs.newver }}"
+            branch: bump/v${{ steps.bump.outputs.newver }}
+            title: "Bump version to v${{ steps.bump.outputs.newver }}"
+            body: "自動バージョンアップ PR: v${{ steps.bump.outputs.newver }}"
+            base: main
