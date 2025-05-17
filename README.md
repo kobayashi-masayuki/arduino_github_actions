@@ -1,2 +1,2 @@
 # arduino_github_actions
-version 1.1
+version v4.2
