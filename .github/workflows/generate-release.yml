@@ -57,6 +57,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
+        id: create_rel
         if: ${{ steps.check_release.outputs.exists == 'false' }}
         uses: actions/create-release@v1
         env:
@@ -100,7 +101,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.create_rel.outputs.upload_url }}
           asset_path: release-${{ steps.pick_tag.outputs.tag }}.zip
           asset_name: release-${{ steps.pick_tag.outputs.tag }}.zip
           asset_content_type: application/zip
