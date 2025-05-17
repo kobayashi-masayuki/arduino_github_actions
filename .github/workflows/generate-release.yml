@@ -1,3 +1,4 @@
+# .github/workflows/generate-release.yml
 name: Generate Release
 
 # ─────────────────────────
@@ -13,38 +14,41 @@ permissions:
   packages: write
 
 jobs:
-  create:
-    name: Create GitHub Release
+  prepare:
+    name: Prepare release data
     runs-on: ubuntu-latest
-
+    outputs:
+      current_tag: ${{ steps.pick_tag.outputs.current_tag }}
+      prev_tag:    ${{ steps.find_prev.outputs.prev_tag }}
+      notes:       ${{ steps.make_notes.outputs.notes }}
+      already_released: ${{ steps.check_release.outputs.exists }}
     steps:
-      # リポジトリをチェックアウト（タグ情報も取得）
-      - name: Checkout
+      # リポジトリをフルヒストリ＆タグ込みでチェックアウト
+      - name: Checkout repo (full history & tags)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      # 現在のタグ名を取得して出力
+      # 現在プッシュされたタグ名を取得
       - name: Determine current tag
         id: pick_tag
         run: |
-          # GITHUB_REF_NAME は refs/tags/vX.Y の形式なので、プレフィックスを削除
-          TAG="${GITHUB_REF_NAME#refs/tags/}"
+          # GITHUB_REF が refs/tags/vX.Y の形式なのでプレフィックスを削除
+          TAG="${GITHUB_REF#refs/tags/}"
           echo "current_tag=$TAG" >> $GITHUB_OUTPUT
 
-      # 直前のタグを取得して出力
+      # 直前のタグを取得
       - name: Determine previous tag
         id: find_prev
         run: |
-          # 最新タグを除外し、残りのリストの一番上を「ひとつ前のタグ」として採用
           PREV=$(git tag --sort=-v:refname \
             | grep -v "^${{ steps.pick_tag.outputs.current_tag }}$" \
             | head -n1)
           echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
 
-      # 既に同名リリースが存在するか確認
-      - name: Check if Release exists
+      # 既に同名リリースが存在するかチェック
+      - name: Check if release exists
         id: check_release
         run: |
           if gh release view "${{ steps.pick_tag.outputs.current_tag }}" >/dev/null 2>&1; then
@@ -53,56 +57,58 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      # リリース済みならここで終了
-      - name: Skip if already released
-        if: ${{ steps.check_release.outputs.exists == 'true' }}
-        run: |
-          echo "Release ${{ steps.pick_tag.outputs.current_tag }} already exists. Exiting."
-
-      # リリースノート生成: 直前タグ〜最新タグのコミットメッセージを整形
+      # リリースノート生成
       - name: Generate release notes
         id: make_notes
-        if: ${{ steps.check_release.outputs.exists == 'false' }}
         run: |
           RANGE="${{ steps.find_prev.outputs.prev_tag }}..${{ steps.pick_tag.outputs.current_tag }}"
           LOG=$(git log "$RANGE" --pretty=format:"- %s")
-          # マルチライン出力のため EOF で囲む
           echo "notes<<EOF" >> $GITHUB_OUTPUT
           echo "$LOG"       >> $GITHUB_OUTPUT
           echo "EOF"        >> $GITHUB_OUTPUT
 
-      # GitHub Release を作成
+  create:
+    name: Create GitHub Release & Attach Binaries
+    needs: prepare
+    runs-on: ubuntu-latest
+    # まだリリースが存在しない場合のみ実行
+    if: needs.prepare.outputs.already_released == 'false'
+    steps:
+      # 再度リポジトリをフルヒストリ＆タグ込みでチェックアウト
+      - name: Checkout repo (full history & tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      # GitHub Release 作成
       - name: Create GitHub Release
         id: create_rel
-        if: ${{ steps.check_release.outputs.exists == 'false' }}
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name:      ${{ steps.pick_tag.outputs.current_tag }}    # 必須
-          release_name:  Release ${{ steps.pick_tag.outputs.current_tag }}
-          body:          ${{ steps.make_notes.outputs.notes }}
-          draft:         false
-          prerelease:    false
+          tag_name:     ${{ needs.prepare.outputs.current_tag }}
+          release_name: Release ${{ needs.prepare.outputs.current_tag }}
+          body:         ${{ needs.prepare.outputs.notes }}
+          draft:        false
+          prerelease:   false
 
-      # Arduino CLI の設定
+      # Arduino CLI セットアップ
       - name: Setup Arduino CLI
-        if: ${{ steps.check_release.outputs.exists == 'false' }}
         uses: arduino/setup-arduino-cli@v2
         with:
           version: '1.2.2'
           token:   ${{ secrets.GITHUB_TOKEN }}
 
-      # ESP32 プラットフォームをインストール
+      # ESP32 プラットフォームインストール
       - name: Install ESP32 platform
-        if: ${{ steps.check_release.outputs.exists == 'false' }}
         run: |
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
 
-      # リリース用スケッチをビルド
+      # スケッチビルド
       - name: Build sketch for release
-        if: ${{ steps.check_release.outputs.exists == 'false' }}
         run: |
           mkdir -p release/build
           arduino-cli compile \
@@ -110,20 +116,18 @@ jobs:
             --build-path release/build \
             release/release.ino
 
-      # ビルド成果物を ZIP 化
+      # バイナリを ZIP 化
       - name: Package binaries
-        if: ${{ steps.check_release.outputs.exists == 'false' }}
         run: |
-          zip -j release-${{ steps.pick_tag.outputs.current_tag }}.zip release/build/*
+          zip -j release-${{ needs.prepare.outputs.current_tag }}.zip release/build/*
 
-      # Release にバイナリをアップロード
+      # Release へアセットアップロード
       - name: Upload assets
-        if: ${{ steps.check_release.outputs.exists == 'false' }}
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url:        ${{ steps.create_rel.outputs.upload_url }}
-          asset_path:        release-${{ steps.pick_tag.outputs.current_tag }}.zip
-          asset_name:        release-${{ steps.pick_tag.outputs.current_tag }}.zip
+          asset_path:        release-${{ needs.prepare.outputs.current_tag }}.zip
+          asset_name:        release-${{ needs.prepare.outputs.current_tag }}.zip
           asset_content_type: application/zip
