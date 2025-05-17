@@ -24,13 +24,17 @@ jobs:
           persist-credentials: true
 
       - name: Determine tag just created
-        # workflow_run の context から最後に付けられたタグを拾う方法です
         id: pick_tag
         run: |
-          # workflow_run イベントでは git ref が main のままなので、
-          # 最新のタグを直接取得します
-          TAG=$(git tag --sort=-v:refname | head -n1)
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+            TAG=$(git tag --sort=-v:refname | head -n1)
+            echo "current_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Determine previous tag
+        id: find_prev
+        run: |
+            # 最新タグを除いた一覧の先頭が「直前のタグ」
+            PREV=$(git tag --sort=-v:refname | grep -v "^${{ steps.pick_tag.outputs.current_tag }}$" | head -n1)
+            echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
 
       - name: Check if Release exists
         id: check_release
@@ -50,7 +54,7 @@ jobs:
         id: notes
         if: ${{ steps.check_release.outputs.exists == 'false' }}
         run: |
-          RANGE="${{ steps.pick_tag.outputs.tag }}^..${{ steps.pick_tag.outputs.tag }}"
+          RANGE="${{ steps.find_prev.outputs.prev_tag }}..${{ steps.pick_tag.outputs.current_tag }}"
           LOG=$(git log "$RANGE" --pretty=format:"- %s")
           echo "notes<<EOF" >> $GITHUB_OUTPUT
           echo "$LOG" >> $GITHUB_OUTPUT
