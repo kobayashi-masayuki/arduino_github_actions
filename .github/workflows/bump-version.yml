@@ -63,11 +63,19 @@ jobs:
           echo "$NEW_VER" > version.txt
           echo "newver=$NEW_VER" >> $GITHUB_OUTPUT
 
-      - name: Commit bumped version
+      - name: Update sketch version
+        run: |
+          sed -i -E \
+            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.bump_ver.outputs.newver }}\2|" \
+            release/release.ino
+  
+      - name: Commit version bump and sketch update
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
           commit_message: "chore: bump version to v${{ steps.bump_ver.outputs.newver }}"
-          file_pattern: version.txt
+          file_pattern: |
+              version.txt
+              release/release.ino
 
       - name: Push commit & create tag
         run: |
