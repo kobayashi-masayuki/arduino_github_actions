@@ -38,6 +38,11 @@ jobs:
             "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.bump.outputs.newver }}\2|" \
             release/release.ino
 
+      - name: Configure Git user
+        run: |
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Create bump branch & commit
         run: |
             git checkout -b bump/v${{ steps.bump.outputs.newver }}
