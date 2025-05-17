@@ -46,8 +46,8 @@ jobs:
       - name: Create bump branch & commit
         id: commit
         run: |
-            BRANCH="bump/v${{ steps.bump.outputs.newver }}"
-            git checkout -b "$BRANCH"
+            BRANCH="bump/v${{ steps.bump.outputs.newver }}-${{ github.run_id }}"
+            git checkout -b $BRANCH
             git add version.txt release/release.ino
             git commit -m "chore: bump version to v${{ steps.bump.outputs.newver }}"
             git push --force-with-lease origin "$BRANCH"
