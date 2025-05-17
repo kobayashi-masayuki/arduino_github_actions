@@ -1,76 +1,86 @@
-# .github/workflows/generate-release.yml
 name: Generate Release
 
+# bump-version.yml の完了を待って自動実行
 on:
-  workflow_dispatch:
-    inputs:
-      old_tag:
-        description: '古いタグ（開始点）'
-        required: true
-        type: string
-      new_tag:
-        description: '新しいタグ（終了点・かつ作成するリリースタグ）'
-        required: true
-        type: string
+  workflow_run:
+    workflows:
+      - Bump Version       # bump-version.yml の name と一致させる
+    types:
+      - completed
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
-  release:
-    name: Create Release from ${{ github.event.inputs.old_tag }} to ${{ github.event.inputs.new_tag }}
+  create:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Checkout full history
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Generate release notes
-        id: make_notes
+      - name: Determine tag just created
+        # workflow_run の context から最後に付けられたタグを拾う方法です
+        id: pick_tag
         run: |
-          RANGE="${{ github.event.inputs.old_tag }}..${{ github.event.inputs.new_tag }}"
+          # workflow_run イベントでは git ref が main のままなので、
+          # 最新のタグを直接取得します
+          TAG=$(git tag --sort=-v:refname | head -n1)
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Check if Release exists
+        id: check_release
+        run: |
+          if gh release view "${{ steps.pick_tag.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip if already released
+        if: ${{ steps.check_release.outputs.exists == 'true' }}
+        run: |
+          echo "Release ${{ steps.pick_tag.outputs.tag }} already exists. Exiting."
+
+      - name: Generate release notes
+        id: notes
+        if: ${{ steps.check_release.outputs.exists == 'false' }}
+        run: |
+          RANGE="${{ steps.pick_tag.outputs.tag }}^..${{ steps.pick_tag.outputs.tag }}"
           LOG=$(git log "$RANGE" --pretty=format:"- %s")
           echo "notes<<EOF" >> $GITHUB_OUTPUT
           echo "$LOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Skip if release exists
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ github.event.inputs.new_tag }}"
-          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            echo "Release $TAG already exists, skipping."
-            exit 0
-          fi
-
       - name: Create GitHub Release
-        id: create_rel
+        if: ${{ steps.check_release.outputs.exists == 'false' }}
         uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.event.inputs.new_tag }}
-          release_name: Release ${{ github.event.inputs.new_tag }}
-          body: ${{ steps.make_notes.outputs.notes }}
+          tag_name: ${{ steps.pick_tag.outputs.tag }}
+          release_name: Release ${{ steps.pick_tag.outputs.tag }}
+          body: ${{ steps.notes.outputs.notes }}
           draft: false
           prerelease: false
 
       - name: Setup Arduino CLI
+        if: ${{ steps.check_release.outputs.exists == 'false' }}
         uses: arduino/setup-arduino-cli@v2
         with:
           version: '1.2.2'
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install ESP32 platform
+        if: ${{ steps.check_release.outputs.exists == 'false' }}
         run: |
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
 
-      - name: Build release sketch
+      - name: Build sketch for release
+        if: ${{ steps.check_release.outputs.exists == 'false' }}
         run: |
           mkdir -p release/build
           arduino-cli compile \
@@ -78,15 +88,15 @@ jobs:
             --build-path release/build \
             release/release.ino
 
-      - name: Package binaries
-        run: zip -j release-${{ github.event.inputs.new_tag }}.zip release/build/*
-
-      - name: Upload binaries to Release
+      - name: Package and upload binaries
+        if: ${{ steps.check_release.outputs.exists == 'false' }}
+        run: |
+          zip -j release-${{ steps.pick_tag.outputs.tag }}.zip release/build/*
+      - name: Upload assets
+        if: ${{ steps.check_release.outputs.exists == 'false' }}
         uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_rel.outputs.upload_url }}
-          asset_path: release-${{ github.event.inputs.new_tag }}.zip
-          asset_name: release-${{ github.event.inputs.new_tag }}.zip
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release-${{ steps.pick_tag.outputs.tag }}.zip
+          asset_name: release-${{ steps.pick_tag.outputs.tag }}.zip
           asset_content_type: application/zip
