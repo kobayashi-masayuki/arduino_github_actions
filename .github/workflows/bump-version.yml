@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   bump:
@@ -49,20 +50,16 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create bump branch & commit
+      - name: Set branch name
         id: commit
         run: |
             BRANCH="bump/v${{ steps.bump.outputs.newver }}-${{ github.run_id }}"
-            git checkout -b $BRANCH
-            git add version.txt release/release.ino
-            git commit -m "chore: bump version to v${{ steps.bump.outputs.newver }}"
-            git push --force-with-lease origin "$BRANCH"
             echo "branch=$BRANCH" >> $GITHUB_OUTPUT
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
-            token: ${{ secrets.GITHUB_TOKEN }}
+            token: ${{ secrets.PAT }}
             commit-message: "chore: bump version to v${{ steps.bump.outputs.newver }}"
             branch: ${{ steps.commit.outputs.branch }}
             title: "Bump version to v${{ steps.bump.outputs.newver }}"
