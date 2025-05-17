@@ -62,3 +62,6 @@ jobs:
             title: "Bump version to v${{ steps.bump.outputs.newver }}"
             body: "自動バージョンアップ PR: v${{ steps.bump.outputs.newver }}"
             base: main
+            add-paths: |
+              version.txt
+              release/release.ino
