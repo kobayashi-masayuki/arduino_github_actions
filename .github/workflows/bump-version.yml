@@ -3,6 +3,8 @@ name: Bump Version
 on:
   push:
     branches: [main]
+    paths-ignore:
+        - 'version.txt'
 
 permissions:
   contents: write
@@ -58,7 +60,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v7
         with:
-            token: ${{ secrets.PAT }}
+            token: ${{ secrets.GITHUB_TOKEN }}
             commit-message: "chore: bump version to v${{ steps.bump.outputs.newver }}"
             branch: ${{ steps.commit.outputs.branch }}
             title: "Bump version to v${{ steps.bump.outputs.newver }}"
