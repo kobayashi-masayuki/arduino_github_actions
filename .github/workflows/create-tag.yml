@@ -16,7 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
 
       - name: Extract version from PR title
         id: get_ver
@@ -25,17 +26,17 @@ jobs:
           TITLE="${{ github.event.pull_request.title }}"
           echo "PR title: $TITLE"
 
-          # 2) シェルのパラメータ展開で 'v' 以降を取得
+          # 2) シェルのパラメータ展開で最後の 'v' 以降を取得
           #    例: "Bump version to v3.1" → VER="3.1"
-          VER="${TITLE#*v}"
+          VER="${TITLE##*v}"
           echo "ver=$VER" >> $GITHUB_OUTPUT
 
       - name: Create and push tag
         run: |
-            TAG="v${{ steps.get_ver.outputs.ver }}"
-            if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
-                echo "Tag $TAG already exists, skipping."
-            else
-                git tag "$TAG"
-                git push origin "$TAG"
-            fi
+          TAG="v${{ steps.get_ver.outputs.ver }}"
+          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
