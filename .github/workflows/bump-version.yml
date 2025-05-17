@@ -1,4 +1,3 @@
-# .github/workflows/bump-version.yml
 name: Bump Version
 
 on:
@@ -18,7 +17,7 @@ permissions:
 
 jobs:
   bump:
-    name: Bump version & push tag
+    name: Bump version & Tag
     runs-on: ubuntu-latest
     steps:
       - name: Checkout full history
@@ -27,11 +26,28 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Ensure version.txt exists
+        run: |
+          test -f version.txt || (echo "version.txt not found" && exit 1)
+
       - name: Read current version
         id: read_ver
         run: |
           ver=$(cat version.txt)
           echo "ver=$ver" >> $GITHUB_OUTPUT
+
+      - name: Sync code version
+        run: |
+          # release/release.ino の const double current_version を置換
+          sed -i -E \
+            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.read_ver.outputs.ver }}\2|" \
+            release/release.ino
+
+      - name: Commit synced version
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "chore: sync current_version to v${{ steps.read_ver.outputs.ver }}"
+          file_pattern: release/release.ino
 
       - name: Calculate next version
         id: bump_ver
@@ -47,28 +63,17 @@ jobs:
           echo "$NEW_VER" > version.txt
           echo "newver=$NEW_VER" >> $GITHUB_OUTPUT
 
-      - name: Update current_version in code
-        run: |
-          # release/release.ino の中の const double current_version を置換
-          sed -i -E \
-            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.bump_ver.outputs.newver }}\2|" \
-            release/release.ino
-
-      - name: Commit version bump + code sync
+      - name: Commit bumped version
         uses: stefanzweifel/git-auto-commit-action@v4
         with:
-          # version.txt と release/release.ino の両方をコミット
-          file_pattern: |
-            version.txt
-            release/release.ino
           commit_message: "chore: bump version to v${{ steps.bump_ver.outputs.newver }}"
+          file_pattern: version.txt
 
-      - name: Push commit and tag
-        env:
-          TAG: v${{ steps.bump_ver.outputs.newver }}
+      - name: Push commit & create tag
         run: |
           git push origin HEAD:refs/heads/main
-          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+          TAG="v${{ steps.bump_ver.outputs.newver }}"
+          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists, skipping."
           else
             git tag "$TAG"
