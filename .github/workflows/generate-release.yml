@@ -1,13 +1,12 @@
 # .github/workflows/generate-release.yml
 name: Generate Release
 
-# ─────────────────────────
-# トリガー: タグのプッシュを検知
-# ─────────────────────────
 on:
-  push:
-    tags:
-      - 'v*.*'
+    workflow_run:
+      workflows:
+        - Create Tag
+      types:
+        - completed
 
 permissions:
   contents: write
