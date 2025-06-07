@@ -1,140 +1,142 @@
-# .github/workflows/generate-release.yml
-name: Generate Release
+# # .github/workflows/generate-release.yml
+# name: Generate Release
+# 一時的にコメントアウト
 
-# ─────────────────────────
-# トリガー: Create Tag ワークフロー完了を待つ
-# ─────────────────────────
-on:
-  workflow_run:
-    workflows:
-      - Create Tag       # create-tag.yml の name と一致
-    types:
-      - completed
 
-permissions:
-  contents: write
-  packages: write
+# # ─────────────────────────
+# # トリガー: Create Tag ワークフロー完了を待つ
+# # ─────────────────────────
+# on:
+#   workflow_run:
+#     workflows:
+#       - Create Tag       # create-tag.yml の name と一致
+#     types:
+#       - completed
 
-jobs:
-  prepare:
-    name: Prepare release data
-    runs-on: ubuntu-latest
-    outputs:
-      current_tag:     ${{ steps.pick_tag.outputs.current_tag }}
-      prev_tag:        ${{ steps.find_prev.outputs.prev_tag }}
-      notes:           ${{ steps.make_notes.outputs.notes }}
-      already_released: ${{ steps.check_release.outputs.exists }}
-    steps:
-      # リポジトリをフル履歴＆タグ込みでチェックアウト
-      - name: Checkout repo (full history & tags)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
+# permissions:
+#   contents: write
+#   packages: write
 
-      # ① 最新タグを取得
-      - name: Determine current tag
-        id: pick_tag
-        run: |
-          TAG=$(git tag --sort=-v:refname | head -n1)
-          echo "current_tag=$TAG" >> $GITHUB_OUTPUT
+# jobs:
+#   prepare:
+#     name: Prepare release data
+#     runs-on: ubuntu-latest
+#     outputs:
+#       current_tag:     ${{ steps.pick_tag.outputs.current_tag }}
+#       prev_tag:        ${{ steps.find_prev.outputs.prev_tag }}
+#       notes:           ${{ steps.make_notes.outputs.notes }}
+#       already_released: ${{ steps.check_release.outputs.exists }}
+#     steps:
+#       # リポジトリをフル履歴＆タグ込みでチェックアウト
+#       - name: Checkout repo (full history & tags)
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#           persist-credentials: true
 
-      # ② 直前のタグを取得
-      - name: Determine previous tag
-        id: find_prev
-        run: |
-          PREV=$(git tag --sort=-v:refname \
-            | grep -v "^${{ steps.pick_tag.outputs.current_tag }}$" \
-            | head -n1)
-          echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
+#       # ① 最新タグを取得
+#       - name: Determine current tag
+#         id: pick_tag
+#         run: |
+#           TAG=$(git tag --sort=-v:refname | head -n1)
+#           echo "current_tag=$TAG" >> $GITHUB_OUTPUT
 
-      # ③ GitHub CLI をインストール（gh コマンドが必要）
-      - name: Install GitHub CLI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
+#       # ② 直前のタグを取得
+#       - name: Determine previous tag
+#         id: find_prev
+#         run: |
+#           PREV=$(git tag --sort=-v:refname \
+#             | grep -v "^${{ steps.pick_tag.outputs.current_tag }}$" \
+#             | head -n1)
+#           echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
 
-      # ④ 既に同名リリースが存在するかチェック
-      - name: Check if release exists
-        id: check_release
-        run: |
-          if gh release view "${{ steps.pick_tag.outputs.current_tag }}" >/dev/null 2>&1; then
-            echo "exists=true"  >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
+#       # ③ GitHub CLI をインストール（gh コマンドが必要）
+#       - name: Install GitHub CLI
+#         run: |
+#           sudo apt-get update
+#           sudo apt-get install -y gh
 
-      # ⑤ リリースノート生成
-      - name: Generate release notes
-        id: make_notes
-        run: |
-          RANGE="${{ steps.find_prev.outputs.prev_tag }}..${{ steps.pick_tag.outputs.current_tag }}"
-          LOG=$(git log "$RANGE" --pretty=format:"- %s")
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$LOG"       >> $GITHUB_OUTPUT
-          echo "EOF"        >> $GITHUB_OUTPUT
+#       # ④ 既に同名リリースが存在するかチェック
+#       - name: Check if release exists
+#         id: check_release
+#         run: |
+#           if gh release view "${{ steps.pick_tag.outputs.current_tag }}" >/dev/null 2>&1; then
+#             echo "exists=true"  >> $GITHUB_OUTPUT
+#           else
+#             echo "exists=false" >> $GITHUB_OUTPUT
+#           fi
 
-  create:
-    name: Create GitHub Release & Attach Binaries
-    needs: prepare
-    runs-on: ubuntu-latest
-    # まだ同名リリースがなければ実行
-    if: needs.prepare.outputs.already_released == 'false'
-    steps:
-      # ⑥ 改めてチェックアウト（フル履歴＆タグ込み）
-      - name: Checkout repo (full history & tags)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
+#       # ⑤ リリースノート生成
+#       - name: Generate release notes
+#         id: make_notes
+#         run: |
+#           RANGE="${{ steps.find_prev.outputs.prev_tag }}..${{ steps.pick_tag.outputs.current_tag }}"
+#           LOG=$(git log "$RANGE" --pretty=format:"- %s")
+#           echo "notes<<EOF" >> $GITHUB_OUTPUT
+#           echo "$LOG"       >> $GITHUB_OUTPUT
+#           echo "EOF"        >> $GITHUB_OUTPUT
 
-      # ⑦ GitHub Release 作成
-      - name: Create GitHub Release
-        id: create_rel
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name:     ${{ needs.prepare.outputs.current_tag }}
-          release_name: Release ${{ needs.prepare.outputs.current_tag }}
-          body:         ${{ needs.prepare.outputs.notes }}
-          draft:        false
-          prerelease:   false
+#   create:
+#     name: Create GitHub Release & Attach Binaries
+#     needs: prepare
+#     runs-on: ubuntu-latest
+#     # まだ同名リリースがなければ実行
+#     if: needs.prepare.outputs.already_released == 'false'
+#     steps:
+#       # ⑥ 改めてチェックアウト（フル履歴＆タグ込み）
+#       - name: Checkout repo (full history & tags)
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#           persist-credentials: true
 
-      # ⑧ Arduino CLI セットアップ
-      - name: Setup Arduino CLI
-        uses: arduino/setup-arduino-cli@v2
-        with:
-          version: '1.2.2'
-          token:   ${{ secrets.GITHUB_TOKEN }}
+#       # ⑦ GitHub Release 作成
+#       - name: Create GitHub Release
+#         id: create_rel
+#         uses: actions/create-release@v1
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           tag_name:     ${{ needs.prepare.outputs.current_tag }}
+#           release_name: Release ${{ needs.prepare.outputs.current_tag }}
+#           body:         ${{ needs.prepare.outputs.notes }}
+#           draft:        false
+#           prerelease:   false
 
-      # ⑨ ESP32 プラットフォームインストール
-      - name: Install ESP32 platform
-        run: |
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32
+#       # ⑧ Arduino CLI セットアップ
+#       - name: Setup Arduino CLI
+#         uses: arduino/setup-arduino-cli@v2
+#         with:
+#           version: '1.2.2'
+#           token:   ${{ secrets.GITHUB_TOKEN }}
 
-      # ⑩ スケッチビルド
-      - name: Build sketch for release
-        run: |
-          mkdir -p release/build
-          arduino-cli compile \
-            --fqbn esp32:esp32:esp32 \
-            --build-path release/build \
-            release/release.ino
+#       # ⑨ ESP32 プラットフォームインストール
+#       - name: Install ESP32 platform
+#         run: |
+#           arduino-cli core update-index
+#           arduino-cli core install esp32:esp32
 
-      # ⑪ バイナリを ZIP 化
-      - name: Package binaries
-        run: |
-          zip -j release-${{ needs.prepare.outputs.current_tag }}.zip release/build/*
+#       # ⑩ スケッチビルド
+#       - name: Build sketch for release
+#         run: |
+#           mkdir -p release/build
+#           arduino-cli compile \
+#             --fqbn esp32:esp32:esp32 \
+#             --build-path release/build \
+#             release/release.ino
 
-      # ⑫ Release へアセットアップロード
-      - name: Upload assets
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url:        ${{ steps.create_rel.outputs.upload_url }}
-          asset_path:        release-${{ needs.prepare.outputs.current_tag }}.zip
-          asset_name:        release-${{ needs.prepare.outputs.current_tag }}.zip
-          asset_content_type: application/zip
+#       # ⑪ バイナリを ZIP 化
+#       - name: Package binaries
+#         run: |
+#           zip -j release-${{ needs.prepare.outputs.current_tag }}.zip release/build/*
+
+#       # ⑫ Release へアセットアップロード
+#       - name: Upload assets
+#         uses: actions/upload-release-asset@v1
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           upload_url:        ${{ steps.create_rel.outputs.upload_url }}
+#           asset_path:        release-${{ needs.prepare.outputs.current_tag }}.zip
+#           asset_name:        release-${{ needs.prepare.outputs.current_tag }}.zip
+#           asset_content_type: application/zip

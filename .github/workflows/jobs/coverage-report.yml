@@ -1,0 +1,15 @@
+# coverage-report.yml
+# まだ実装方法が未定のため何もしないジョブとして定義します。
+
+name: coverage-report
+
+on:
+  workflow_call: {}
+
+jobs:
+  coverage-report:
+    name: Coverage Report (No-Op)
+    runs-on: ubuntu-latest
+    steps:
+      - name: No action
+        run: echo "Coverage reporting not yet implemented"

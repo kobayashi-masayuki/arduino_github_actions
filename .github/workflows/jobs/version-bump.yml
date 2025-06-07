@@ -1,0 +1,40 @@
+# version-bump.yml
+
+on:
+  workflow_call:
+    # No inputs required
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read current version
+        id: read
+        run: |
+          echo "current_version=$(cat version.txt)" >> $GITHUB_OUTPUT
+
+      - name: Bump version
+        id: bump
+        run: |
+          IFS='.' read -r major minor patch <<< "${{ steps.read.outputs.current_version }}"
+          patch=$((patch + 1))
+          new_version="$major.$minor.$patch"
+          echo $new_version > version.txt
+          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.txt
+          git commit -m "Bump version to ${{ steps.bump.outputs.new_version }}"
+
+      - name: Push changes
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}

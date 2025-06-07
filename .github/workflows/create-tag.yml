@@ -1,42 +1,44 @@
-name: Create Tag
+# name: Create Tag
+# 一時的にコメントアウト
 
-on:
-  pull_request:
-    types: [closed]
 
-permissions:
-  contents: write
+# on:
+#   pull_request:
+#     types: [closed]
 
-jobs:
-  tag:
-    name: Tag after bump PR merged
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true &&
-        startsWith(github.event.pull_request.title, 'Bump version to v')
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+# permissions:
+#   contents: write
 
-      - name: Extract version from PR title
-        id: get_ver
-        run: |
-          # 1) GitHub コンテキストから PR タイトルを取ってくる
-          TITLE="${{ github.event.pull_request.title }}"
-          echo "PR title: $TITLE"
+# jobs:
+#   tag:
+#     name: Tag after bump PR merged
+#     runs-on: ubuntu-latest
+#     if: github.event.pull_request.merged == true &&
+#         startsWith(github.event.pull_request.title, 'Bump version to v')
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
 
-          # 2) シェルのパラメータ展開で最後の 'v' 以降を取得
-          #    例: "Bump version to v3.1" → VER="3.1"
-          VER="${TITLE##*v}"
-          echo "ver=$VER" >> $GITHUB_OUTPUT
+#       - name: Extract version from PR title
+#         id: get_ver
+#         run: |
+#           # 1) GitHub コンテキストから PR タイトルを取ってくる
+#           TITLE="${{ github.event.pull_request.title }}"
+#           echo "PR title: $TITLE"
 
-      - name: Create and push tag
-        run: |
-          TAG="v${{ steps.get_ver.outputs.ver }}"
-          if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists, skipping."
-          else
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
+#           # 2) シェルのパラメータ展開で最後の 'v' 以降を取得
+#           #    例: "Bump version to v3.1" → VER="3.1"
+#           VER="${TITLE##*v}"
+#           echo "ver=$VER" >> $GITHUB_OUTPUT
+
+#       - name: Create and push tag
+#         run: |
+#           TAG="v${{ steps.get_ver.outputs.ver }}"
+#           if git rev-parse --verify "refs/tags/$TAG" >/dev/null 2>&1; then
+#             echo "Tag $TAG already exists, skipping."
+#           else
+#             git tag "$TAG"
+#             git push origin "$TAG"
+#           fi
