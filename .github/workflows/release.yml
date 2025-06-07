@@ -1,4 +1,11 @@
 name: Release Pipeline
+
+# ワークフロー全体に付与する権限を指定
+permissions:
+  contents: write        # リリースアーティファクトのアップロード等で必要
+  issues: read           # プルリクエスト作成時の情報取得など
+  pull-requests: write   # リリースPR作成
+
 on:
   workflow_dispatch:
     inputs:
