@@ -5,14 +5,12 @@ on:
         description: 'どちらのバージョンを上げるか ("major" or "minor")'
         required: true
         type: string
-    outputs:
-      new:
-        description: '新しいバージョンタグ (例: v1.2)'
-        value: ${{ steps.bump.outputs.new }}
 
 jobs:
   version-bump:
     runs-on: ubuntu-latest
+    outputs:
+      new: ${{ steps.bump.outputs.new }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
