@@ -9,24 +9,24 @@ on:
 
 jobs:
   checkout-setup:
-    uses: ./.github/workflows/jobs/checkout-setup.yml
+    uses: ./.github/workflows/wf-checkout-setup.yml
 
   format:
     needs: checkout-setup
-    uses: ./.github/workflows/jobs/format-check.yml
+    uses: ./.github/workflows/wf-format-check.yml
 
   lint:
     needs: format
-    uses: ./.github/workflows/jobs/lint.yml
+    uses: ./.github/workflows/wf-lint.yml
 
   coverage:
     needs: lint
-    uses: ./.github/workflows/jobs/coverage-report.yml
+    uses: ./.github/workflows/wf-coverage-report.yml
 
   unit-test:
     needs: coverage
-    uses: ./.github/workflows/jobs/unit-test.yml
+    uses: ./.github/workflows/wf-unit-test.yml
 
   build:
     needs: unit-test
-    uses: ./.github/workflows/jobs/compile-sketches.yml
+    uses: ./.github/workflows/wf-compile-sketches.yml
