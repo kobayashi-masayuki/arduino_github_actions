@@ -1,0 +1,71 @@
+name: Release Build
+一時的にコメントアウト
+
+on:
+  workflow_run:
+    workflows:
+      - "Test Sketches"    # ← test.yml の name と一致させる
+    types:
+      - completed
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 'build: ${{matrix.board.name}}'
+    runs-on: ubuntu-latest
+    strategy:
+        fail-fast: false
+        matrix:
+          board:
+            - fqbn: esp32:esp32:esp32
+              platforms: |
+                - name: esp32:esp32
+                  source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+            ref: ${{ github.head_ref }}
+
+      - name: Debug show permissions & token
+        run: |
+            echo "GITHUB_TOKEN is set? -> ${{ secrets.GITHUB_TOKEN != '' }}"
+            gh auth status || echo "gh CLI not installed"
+
+      - name: Debug List Arduino CLI releases
+        run: |
+            curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/arduino/arduino-cli/releases | head -n 20
+
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+            version: "1.2.2"
+            token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install ESP32 platform
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Compile release sketch
+        run : |
+          mkdir -p release/build
+          arduino-cli compile \
+            --fqbn ${{ matrix.board.fqbn }} \
+            --build-path release/build \
+            release/release.ino
+
+      - name: Package binaries
+        run: zip -j release.zip release/build/*
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-zip
+          path: release.zip

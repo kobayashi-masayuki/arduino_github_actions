@@ -4,7 +4,12 @@
 name: notify
 
 on:
-  workflow_call: {}
+  workflow_call:
+    inputs:
+      version:
+        description: '新しいバージョンタグ'
+        required: true
+        type: string
 
 jobs:
   notify:

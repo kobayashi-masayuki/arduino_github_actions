@@ -1,40 +1,58 @@
-# version-bump.yml
-
 on:
   workflow_call:
-    # No inputs required
+    inputs:
+      bump:
+        description: 'どちらのバージョンを上げるか ("major" or "minor")'
+        required: true
+        type: string
+    outputs:
+      new:
+        description: '新しいバージョンタグ (例: v1.2)'
+        value: ${{ steps.bump.outputs.new }}
 
 jobs:
   version-bump:
     runs-on: ubuntu-latest
-    outputs:
-      new_version: ${{ steps.bump.outputs.new_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Read current version
-        id: read
+      - name: Read latest tag
+        id: tag
         run: |
-          echo "current_version=$(cat version.txt)" >> $GITHUB_OUTPUT
+          TAG=$(git describe --tags --abbrev=0)
+          echo "latest=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Bump version
+      - name: Bump version.txt and release.ino
         id: bump
         run: |
-          IFS='.' read -r major minor patch <<< "${{ steps.read.outputs.current_version }}"
-          patch=$((patch + 1))
-          new_version="$major.$minor.$patch"
-          echo $new_version > version.txt
-          echo "new_version=$new_version" >> $GITHUB_OUTPUT
+          LATEST=${{ steps.tag.outputs.latest }}
+          IFS='.' read MAJOR MINOR <<< "${LATEST#v}"
+          if [[ "${{ inputs.bump }}" == "major" ]]; then
+            MAJOR=$((MAJOR+1))
+            MINOR=0
+          else
+            MINOR=$((MINOR+1))
+          fi
+          NEW="v${MAJOR}.${MINOR}"
+          echo "$NEW" > version.txt
+          sed -i -E "s/#define VERSION \".*\"/#define VERSION \"${NEW#v}\"/" release/release.ino
+          echo "new=$NEW" >> $GITHUB_OUTPUT
 
-      - name: Commit version bump
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add version.txt
-          git commit -m "Bump version to ${{ steps.bump.outputs.new_version }}"
-
-      - name: Push changes
-        uses: ad-m/github-push-action@v0.6.0
+      - name: Commit & push bump
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          commit_message: "chore: bump version to ${{ steps.bump.outputs.new }}"
+          file_pattern: |
+            version.txt
+            release/release.ino
+
+      - name: Create release branch
+        run: |
+          BR="release/${{ steps.bump.outputs.new }}"
+          git checkout -b "$BR"
+          git push origin "$BR"
+        shell: bash
