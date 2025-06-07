@@ -1,0 +1,40 @@
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: '新しいバージョンタグ (例: v1.2)'
+        required: true
+        type: string
+
+jobs:
+  upload-artifacts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # release asset のアップロードに必要
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/${{ inputs.version }}
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: Compile release sketch
+        run: |
+          arduino-cli compile -b esp32:esp32:esp32 release/release.ino \
+            --output-dir build/output
+
+      - name: Zip binary
+        run: |
+          cd build/output
+          zip "${{ inputs.version }}.zip" *.bin
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/output/${{ inputs.version }}.zip
+          asset_name: sketch_${{ inputs.version }}.zip
+          asset_content_type: application/zip

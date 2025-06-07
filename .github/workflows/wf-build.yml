@@ -1,0 +1,49 @@
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: '新しいバージョンタグ (例: v1.2)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/${{ inputs.version }}
+          fetch-depth: 0
+
+      - name: Create PR to main
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: prepare release ${{ inputs.version }}"
+          branch: release/${{ inputs.version }}
+          base: main
+          title: "Release ${{ inputs.version }}"
+          body: |
+            This PR prepares release ${{ inputs.version }}.
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          git fetch origin main --depth=1
+          NOTES="$(git log origin/main..HEAD --oneline)"
+          echo "notes<<EOF\n$NOTES\nEOF" >> $GITHUB_OUTPUT
+
+      - name: Create draft GitHub Release
+        uses: actions/create-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ inputs.version }}
+          name: ${{ inputs.version }}
+          body: ${{ steps.changelog.outputs.notes }}
+          draft: true
