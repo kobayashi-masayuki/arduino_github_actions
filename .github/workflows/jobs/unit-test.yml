@@ -1,0 +1,12 @@
+# unit-test.yml
+# まだ実装方法が未定のため何もしないジョブとして定義します。
+
+on:
+  workflow_call:
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: No-op
+        run: echo "No unit tests configured"

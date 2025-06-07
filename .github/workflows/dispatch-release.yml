@@ -1,218 +1,220 @@
-# .github/workflows/auto-release.yml
-name: Auto Release
+# # .github/workflows/auto-release.yml
+# name: Auto Release
+# 一時的にコメントアウト
 
-# ─────────────────────────
-# トリガー
-# ─────────────────────────
-on:
-  workflow_dispatch:
-    inputs:
-      version_type:
-        description: 'どちらのバージョンを上げますか？'
-        required: true
-        default: 'minor'
-        type: choice
-        options:
-          - major
-          - minor
 
-permissions:
-  contents: write
-  packages: write
+# # ─────────────────────────
+# # トリガー
+# # ─────────────────────────
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       version_type:
+#         description: 'どちらのバージョンを上げますか？'
+#         required: true
+#         default: 'minor'
+#         type: choice
+#         options:
+#           - major
+#           - minor
 
-jobs:
-  # ─────────────────────────
-  # 1. スケッチ内バージョン同期
-  # ─────────────────────────
-  sync-code-version:
-    name: Sync current_version in code
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository (full history)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
+# permissions:
+#   contents: write
+#   packages: write
 
-      - name: Ensure version.txt exists
-        run: |
-          if [ ! -f version.txt ]; then
-            echo "version.txt not found" >&2
-            exit 1
-          fi
+# jobs:
+#   # ─────────────────────────
+#   # 1. スケッチ内バージョン同期
+#   # ─────────────────────────
+#   sync-code-version:
+#     name: Sync current_version in code
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout repository (full history)
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#           persist-credentials: true
 
-      - name: Read version from version.txt
-        id: read_ver
-        run: |
-          ver=$(cat version.txt)
-          echo "ver=$ver" >> $GITHUB_OUTPUT
+#       - name: Ensure version.txt exists
+#         run: |
+#           if [ ! -f version.txt ]; then
+#             echo "version.txt not found" >&2
+#             exit 1
+#           fi
 
-      - name: Update current_version in sketch
-        run: |
-          # major.minor のみを sed で置換
-          sed -i -E \
-            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.read_ver.outputs.ver }}\2|" \
-            release/release.ino
+#       - name: Read version from version.txt
+#         id: read_ver
+#         run: |
+#           ver=$(cat version.txt)
+#           echo "ver=$ver" >> $GITHUB_OUTPUT
 
-      - name: Commit synced version
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "chore: sync current_version to v${{ steps.read_ver.outputs.ver }}"
-          file_pattern: release/release.ino
+#       - name: Update current_version in sketch
+#         run: |
+#           # major.minor のみを sed で置換
+#           sed -i -E \
+#             "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.read_ver.outputs.ver }}\2|" \
+#             release/release.ino
 
-  # ─────────────────────────
-  # 2. version.txt のマイナーインクリメント＆タグ付与
-  # ─────────────────────────
-  bump-and-tag:
-    name: Bump minor version & create tag
-    needs: sync-code-version
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    steps:
-      - name: Checkout repository (with tags)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
+#       - name: Commit synced version
+#         uses: stefanzweifel/git-auto-commit-action@v4
+#         with:
+#           commit_message: "chore: sync current_version to v${{ steps.read_ver.outputs.ver }}"
+#           file_pattern: release/release.ino
 
-      - name: Sync local main with origin/main
-        run: |
-          git fetch origin main
-          git reset --hard origin/main
-          git pull --rebase origin main
+#   # ─────────────────────────
+#   # 2. version.txt のマイナーインクリメント＆タグ付与
+#   # ─────────────────────────
+#   bump-and-tag:
+#     name: Bump minor version & create tag
+#     needs: sync-code-version
+#     runs-on: ubuntu-latest
+#     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+#     steps:
+#       - name: Checkout repository (with tags)
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#           persist-credentials: true
 
-      - name: Read current version
-        id: read_ver2
-        run: |
-          ver=$(cat version.txt)
-          echo "ver=$ver" >> $GITHUB_OUTPUT
+#       - name: Sync local main with origin/main
+#         run: |
+#           git fetch origin main
+#           git reset --hard origin/main
+#           git pull --rebase origin main
 
-      - name: Calculate next version
-        id: bump_ver
-        run: |
-          IFS='.' read -r MAJ MIN <<< "${{ steps.read_ver2.outputs.ver }}"
-          if [ "${{ github.event.inputs.version_type }}" = "major" ]; then
-            MAJ=$((MAJ + 1))
-            MIN=0
-          else
-            MIN=$((MIN + 1))
-          fi
-          NEW_VER="${MAJ}.${MIN}"
-          echo "$NEW_VER" > version.txt
-          echo "newver=$NEW_VER" >> $GITHUB_OUTPUT
+#       - name: Read current version
+#         id: read_ver2
+#         run: |
+#           ver=$(cat version.txt)
+#           echo "ver=$ver" >> $GITHUB_OUTPUT
 
-      - name: Commit version bump
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: "chore: bump version to v${{ steps.bump_ver.outputs.newver }}"
-          file_pattern: version.txt
+#       - name: Calculate next version
+#         id: bump_ver
+#         run: |
+#           IFS='.' read -r MAJ MIN <<< "${{ steps.read_ver2.outputs.ver }}"
+#           if [ "${{ github.event.inputs.version_type }}" = "major" ]; then
+#             MAJ=$((MAJ + 1))
+#             MIN=0
+#           else
+#             MIN=$((MIN + 1))
+#           fi
+#           NEW_VER="${MAJ}.${MIN}"
+#           echo "$NEW_VER" > version.txt
+#           echo "newver=$NEW_VER" >> $GITHUB_OUTPUT
 
-      - name: Push bump commit & tag
-        env:
-          TAG: v${{ steps.bump_ver.outputs.newver }}
-        run: |
-          git push origin HEAD:refs/heads/main
-          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists, skipping."
-          else
-            git tag "$TAG"
-            git push origin "$TAG"
-          fi
+#       - name: Commit version bump
+#         uses: stefanzweifel/git-auto-commit-action@v4
+#         with:
+#           commit_message: "chore: bump version to v${{ steps.bump_ver.outputs.newver }}"
+#           file_pattern: version.txt
 
-  # ─────────────────────────
-  # 3. 自動リリースノート生成
-  # ─────────────────────────
-  generate-release-notes:
-    name: Generate Release Notes
-    needs: bump-and-tag
-    runs-on: ubuntu-latest
-    if: ${{ needs.bump-and-tag.result == 'success' }}
-    outputs:
-      notes: ${{ steps.make_notes.outputs.notes }}
-    steps:
-      - name: Checkout repository (with tags)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
+#       - name: Push bump commit & tag
+#         env:
+#           TAG: v${{ steps.bump_ver.outputs.newver }}
+#         run: |
+#           git push origin HEAD:refs/heads/main
+#           if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+#             echo "Tag $TAG already exists, skipping."
+#           else
+#             git tag "$TAG"
+#             git push origin "$TAG"
+#           fi
 
-      - name: Sync with remote main
-        run: |
-          git fetch origin main
-          git reset --hard origin/main
+#   # ─────────────────────────
+#   # 3. 自動リリースノート生成
+#   # ─────────────────────────
+#   generate-release-notes:
+#     name: Generate Release Notes
+#     needs: bump-and-tag
+#     runs-on: ubuntu-latest
+#     if: ${{ needs.bump-and-tag.result == 'success' }}
+#     outputs:
+#       notes: ${{ steps.make_notes.outputs.notes }}
+#     steps:
+#       - name: Checkout repository (with tags)
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#           persist-credentials: true
 
-      - name: Determine previous tag
-        id: find_prev
-        run: |
-          CURRENT=${GITHUB_REF_NAME}
-          PREV=$(git tag --sort=-v:refname | grep -E -v "^${CURRENT}$" | head -n1)
-          echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
+#       - name: Sync with remote main
+#         run: |
+#           git fetch origin main
+#           git reset --hard origin/main
 
-      - name: Generate notes from commits
-        id: make_notes
-        run: |
-          RANGE="${{ steps.find_prev.outputs.prev_tag }}..${GITHUB_REF_NAME}"
-          LOG=$(git log "$RANGE" --pretty=format:"- %s")
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$LOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+#       - name: Determine previous tag
+#         id: find_prev
+#         run: |
+#           CURRENT=${GITHUB_REF_NAME}
+#           PREV=$(git tag --sort=-v:refname | grep -E -v "^${CURRENT}$" | head -n1)
+#           echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
 
-  # ─────────────────────────
-  # 4. GitHub Release 作成 ＆ バイナリ添付
-  # ─────────────────────────
-  create_release:
-    name: Create GitHub Release & Attach Binaries
-    needs: generate-release-notes
-    runs-on: ubuntu-latest
-    if: ${{ needs.generate-release-notes.result == 'success' }}
-    steps:
-      - name: Checkout repository (full history)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: true
+#       - name: Generate notes from commits
+#         id: make_notes
+#         run: |
+#           RANGE="${{ steps.find_prev.outputs.prev_tag }}..${GITHUB_REF_NAME}"
+#           LOG=$(git log "$RANGE" --pretty=format:"- %s")
+#           echo "notes<<EOF" >> $GITHUB_OUTPUT
+#           echo "$LOG" >> $GITHUB_OUTPUT
+#           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        id: create_rel
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          body: ${{ needs.generate-release-notes.outputs.notes }}
-          draft: false
-          prerelease: false
+#   # ─────────────────────────
+#   # 4. GitHub Release 作成 ＆ バイナリ添付
+#   # ─────────────────────────
+#   create_release:
+#     name: Create GitHub Release & Attach Binaries
+#     needs: generate-release-notes
+#     runs-on: ubuntu-latest
+#     if: ${{ needs.generate-release-notes.result == 'success' }}
+#     steps:
+#       - name: Checkout repository (full history)
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+#           persist-credentials: true
 
-      - name: Setup Arduino CLI
-        uses: arduino/setup-arduino-cli@v2
-        with:
-          version: '1.2.2'
-          token: ${{ secrets.GITHUB_TOKEN }}
+#       - name: Create GitHub Release
+#         id: create_rel
+#         uses: actions/create-release@v1
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           token: ${{ secrets.GITHUB_TOKEN }}
+#           tag_name: ${{ github.ref_name }}
+#           release_name: Release ${{ github.ref_name }}
+#           body: ${{ needs.generate-release-notes.outputs.notes }}
+#           draft: false
+#           prerelease: false
 
-      - name: Install ESP32 platform
-        run: |
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32
+#       - name: Setup Arduino CLI
+#         uses: arduino/setup-arduino-cli@v2
+#         with:
+#           version: '1.2.2'
+#           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build release sketch
-        run: |
-          mkdir -p release/build
-          arduino-cli compile \
-            --fqbn esp32:esp32:esp32 \
-            --build-path release/build \
-            release/release.ino
+#       - name: Install ESP32 platform
+#         run: |
+#           arduino-cli core update-index
+#           arduino-cli core install esp32:esp32
 
-      - name: Package binaries
-        run: zip -j release-${{ github.ref_name }}.zip release/build/*
+#       - name: Build release sketch
+#         run: |
+#           mkdir -p release/build
+#           arduino-cli compile \
+#             --fqbn esp32:esp32:esp32 \
+#             --build-path release/build \
+#             release/release.ino
 
-      - name: Upload binaries to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_rel.outputs.upload_url }}
-          asset_path: release-${{ github.ref_name }}.zip
-          asset_name: release-${{ github.ref_name }}.zip
-          asset_content_type: application/zip
+#       - name: Package binaries
+#         run: zip -j release-${{ github.ref_name }}.zip release/build/*
+
+#       - name: Upload binaries to Release
+#         uses: actions/upload-release-asset@v1
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           upload_url: ${{ steps.create_rel.outputs.upload_url }}
+#           asset_path: release-${{ github.ref_name }}.zip
+#           asset_name: release-${{ github.ref_name }}.zip
+#           asset_content_type: application/zip

@@ -1,70 +1,72 @@
-name: Create Release
+# name: Create Release
+# 一時的にコメントアウト
 
-on:
-  push:
-    tags:
-      - 'v*.*'
 
-permissions:
-  contents: write
-  packages: write
+# on:
+#   push:
+#     tags:
+#       - 'v*.*'
 
-jobs:
-  release:
-    name: Release & Attach Binaries
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+# permissions:
+#   contents: write
+#   packages: write
 
-      - name: Generate release notes
-        id: notes
-        run: |
-            echo "body<<EOF" >> $GITHUB_OUTPUT
-            git log v$PREV..v$CUR --pretty=format:'- %s' >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+# jobs:
+#   release:
+#     name: Release & Attach Binaries
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
+#         with: { fetch-depth: 0 }
 
-      - name: Create GitHub Release
-        id: create_rel
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          body: ${{ steps.notes.outputs.body }}
-          draft: false
-          prerelease: false
+#       - name: Generate release notes
+#         id: notes
+#         run: |
+#             echo "body<<EOF" >> $GITHUB_OUTPUT
+#             git log v$PREV..v$CUR --pretty=format:'- %s' >> $GITHUB_OUTPUT
+#             echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Setup Arduino CLI
-        uses: arduino/setup-arduino-cli@v2
-        with:
-          version: '1.2.2'
-          token: ${{ secrets.GITHUB_TOKEN }}
+#       - name: Create GitHub Release
+#         id: create_rel
+#         uses: actions/create-release@v1
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           tag_name: ${{ github.ref_name }}
+#           release_name: Release ${{ github.ref_name }}
+#           body: ${{ steps.notes.outputs.body }}
+#           draft: false
+#           prerelease: false
 
-      - name: Install ESP32 platform
-        run: |
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32
+#       - name: Setup Arduino CLI
+#         uses: arduino/setup-arduino-cli@v2
+#         with:
+#           version: '1.2.2'
+#           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build release sketch
-        run: |
-          mkdir -p release/build
-          arduino-cli compile \
-            --fqbn esp32:esp32:esp32 \
-            --build-path release/build \
-            release/release.ino
+#       - name: Install ESP32 platform
+#         run: |
+#           arduino-cli core update-index
+#           arduino-cli core install esp32:esp32
 
-      - name: Package binaries
-        run: zip -j release-${{ github.ref_name }}.zip release/build/*
+#       - name: Build release sketch
+#         run: |
+#           mkdir -p release/build
+#           arduino-cli compile \
+#             --fqbn esp32:esp32:esp32 \
+#             --build-path release/build \
+#             release/release.ino
 
-      - name: Upload release asset
-        uses: actions/upload-release-asset@v1
-        env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_rel.outputs.upload_url }}
-          asset_path: release-${{ github.ref_name }}.zip
-          asset_name: release-${{ github.ref_name }}.zip
-          asset_content_type: application/zip
+#       - name: Package binaries
+#         run: zip -j release-${{ github.ref_name }}.zip release/build/*
+
+#       - name: Upload release asset
+#         uses: actions/upload-release-asset@v1
+#         env:
+#             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           upload_url: ${{ steps.create_rel.outputs.upload_url }}
+#           asset_path: release-${{ github.ref_name }}.zip
+#           asset_name: release-${{ github.ref_name }}.zip
+#           asset_content_type: application/zip

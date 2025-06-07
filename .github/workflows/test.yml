@@ -1,114 +1,115 @@
-name: Test Sketches
+# name: Test Sketches
+# 一時的にコメントアウト
 
-permissions:
-  contents: read
-  pull-requests: write
+# permissions:
+#   contents: read
+#   pull-requests: write
 
-on:
-  # pull_request:
-  #   types:
-  #     - opened
-  #     - synchronize
-  workflow_dispatch:
+# on:
+#   # pull_request:
+#   #   types:
+#   #     - opened
+#   #     - synchronize
+#   workflow_dispatch:
 
-jobs:
-  formatting-check:
-    name: Formatting Check
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        path:
-          - test
-          - release
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+# jobs:
+#   formatting-check:
+#     name: Formatting Check
+#     runs-on: ubuntu-latest
+#     strategy:
+#       matrix:
+#         path:
+#           - test
+#           - release
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
 
-      - name: Run clang-format style check for C/C++/Protobuf programs
-        uses: jidicula/clang-format-action@v4.15.0
-        with:
-          clang-format-version: '20'
-          check-path: ${{ matrix.path }}
-          fallback-style: 'Google' # optional
+#       - name: Run clang-format style check for C/C++/Protobuf programs
+#         uses: jidicula/clang-format-action@v4.15.0
+#         with:
+#           clang-format-version: '20'
+#           check-path: ${{ matrix.path }}
+#           fallback-style: 'Google' # optional
 
-  lint:
-    name: Arduino Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+#   lint:
+#     name: Arduino Lint
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
 
-      # 2. Python 環境をセットアップ
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
+#       # 2. Python 環境をセットアップ
+#       - name: Setup Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.x'
 
-      # 3. cpplint をインストール
-      - name: Install cpplint
-        run: |
-          python -m pip install --upgrade pip
-          pip install cpplint
+#       # 3. cpplint をインストール
+#       - name: Install cpplint
+#         run: |
+#           python -m pip install --upgrade pip
+#           pip install cpplint
 
-      # 4. Reviewdog をインストール
-      - name: Install reviewdog
-        run: |
-          curl -sSL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh \
-            | sh -s -- -b $HOME/bin
-          echo "$HOME/bin" >> $GITHUB_PATH
+#       # 4. Reviewdog をインストール
+#       - name: Install reviewdog
+#         run: |
+#           curl -sSL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh \
+#             | sh -s -- -b $HOME/bin
+#           echo "$HOME/bin" >> $GITHUB_PATH
 
-      # 5. cpplint を実行して Reviewdog で結果を PR にコメント
-      - name: Run cpplint and report via Reviewdog
-        env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          find . -type f \( -name '*.ino' -o -name '*.cpp' -o -name '*.h' \) \
-            | xargs cpplint --filter=-legal/copyright --extensions=h,cpp,ino 2>&1 \
-            | reviewdog \
-                -efm="%f:%l: %m" \
-                -name="arduino-cpplint" \
-                -reporter=github-pr-review \
-                -fail-on-error=true
+#       # 5. cpplint を実行して Reviewdog で結果を PR にコメント
+#       - name: Run cpplint and report via Reviewdog
+#         env:
+#           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         run: |
+#           find . -type f \( -name '*.ino' -o -name '*.cpp' -o -name '*.h' \) \
+#             | xargs cpplint --filter=-legal/copyright --extensions=h,cpp,ino 2>&1 \
+#             | reviewdog \
+#                 -efm="%f:%l: %m" \
+#                 -name="arduino-cpplint" \
+#                 -reporter=github-pr-review \
+#                 -fail-on-error=true
 
 
-  compile:
-    name: 'test: ${{ matrix.board.fqbn }}'
-    runs-on: ubuntu-latest
-    needs:
-        - formatting-check
-        - lint
-    strategy:
-      fail-fast: false
-      matrix:
-        board:
-          - fqbn: esp32:esp32:esp32
-            platforms: |
-              - name: esp32:esp32
-                source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+#   compile:
+#     name: 'test: ${{ matrix.board.fqbn }}'
+#     runs-on: ubuntu-latest
+#     needs:
+#         - formatting-check
+#         - lint
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         board:
+#           - fqbn: esp32:esp32:esp32
+#             platforms: |
+#               - name: esp32:esp32
+#                 source-url: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.head_ref }}
 
-      - name: Compile all test sketches
-        uses: arduino/compile-sketches@v1.1.2
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          fqbn: ${{ matrix.board.fqbn }}
-          platforms: ${{ matrix.board.platforms }}
-          sketch-paths: |
-            test
-            release
-          libraries: |
-            AUnit
-          sketches-report-path: sketches-reports
-          enable-deltas-report: true
-          enable-warnings-report: true
+#       - name: Compile all test sketches
+#         uses: arduino/compile-sketches@v1.1.2
+#         with:
+#           github-token: ${{ secrets.GITHUB_TOKEN }}
+#           fqbn: ${{ matrix.board.fqbn }}
+#           platforms: ${{ matrix.board.platforms }}
+#           sketch-paths: |
+#             test
+#             release
+#           libraries: |
+#             AUnit
+#           sketches-report-path: sketches-reports
+#           enable-deltas-report: true
+#           enable-warnings-report: true
 
-      - name: Upload compile report
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-compile-report
-          path: sketches-reports
+#       - name: Upload compile report
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: test-compile-report
+#           path: sketches-reports

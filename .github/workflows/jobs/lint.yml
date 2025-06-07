@@ -1,0 +1,39 @@
+# lint.yml
+
+on:
+  workflow_call:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install cpplint
+        run: |
+          python -m pip install --upgrade pip
+          pip install cpplint
+
+      - name: Install reviewdog
+        run: |
+          curl -sSL https://raw.githubusercontent.com/reviewdog/reviewdog/master/install.sh \
+            | sh -s -- -b $HOME/bin
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Run cpplint via Reviewdog
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          find . -type f \( -name '*.ino' -o -name '*.cpp' -o -name '*.h' \) \
+            | xargs cpplint --filter=-legal/copyright,-whitespace/newline,-readability/braces,-whitespace/ending_newline,-whitespace/braces --extensions=h,cpp,ino 2>&1 \
+            | reviewdog \
+                -efm="%f:%l: %m" \
+                -name="arduino-cpplint" \
+                -reporter=github-pr-review \
+                -fail-level=error

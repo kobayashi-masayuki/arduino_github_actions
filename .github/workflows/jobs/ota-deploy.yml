@@ -1,0 +1,20 @@
+# ota-deploy.yml
+
+on:
+  workflow_call:
+    inputs:
+      new_version:
+        required: true
+        type: string
+
+jobs:
+  ota-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to OTA server
+        run: |
+          aws s3 cp build/ OTA_BUCKET_URL/${{ inputs.new_version }}/ --recursive
+
+      - name: Notify devices
+        run: |
+          python3 scripts/notify_devices.py --version ${{ inputs.new_version }}
