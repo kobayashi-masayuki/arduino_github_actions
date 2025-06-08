@@ -61,11 +61,13 @@ jobs:
       - name: Update version files
         id: bump-files
         run: |
+          TAG=${{ steps.calculate-new.outputs.new }}
+          VERSION=${TAG#v}
           # version.txt
-          echo "${{ steps.calculate-new.outputs.new }}" > version.txt
+          echo "${VERSION}" > version.txt
           # release/release.ino の定義を書き換え
           sed -i -E \
-            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.calculate-new.outputs.new }}\2|" \
+            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${VERSION}\2|" \
             release/release.ino
 
       - name: Create Pull Request
