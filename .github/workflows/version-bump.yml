@@ -72,12 +72,6 @@ jobs:
             "s/^#define VERSION \".*\"/#define VERSION \"${{ steps.calculate-new.outputs.new }}\"/" \
             release/release.ino
 
-      - name: Push release branch
-        run: |
-          git add version.txt release/release.ino
-           git commit -m "chore: bump version to ${{ steps.calculate-new.outputs.new }}"
-            git push --set-upstream origin release/${{ steps.calculate-new.outputs.new }}
-
       - name: Push new tag
         run: |
           git tag "${{ steps.calculate-new.outputs.new }}"
@@ -93,3 +87,6 @@ jobs:
             This PR prepares release ${{ steps.calculate-new.outputs.new }}.
           branch: "release/${{ steps.calculate-new.outputs.new }}"
           base: main
+          add-paths: |
+            version.txt
+            release/release.ino
