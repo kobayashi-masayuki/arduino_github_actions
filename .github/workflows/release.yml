@@ -1,42 +1,116 @@
-name: Release Pipeline
+# .github/workflows/release.yml
+name: Release Automation
 
-# ワークフロー全体に付与する権限を指定
-permissions:
-  contents: write        # リリースアーティファクトのアップロード等で必要
-  issues: read           # プルリクエスト作成時の情報取得など
-  pull-requests: write   # リリースPR作成
-
+# トリガー:
+#  - release ブランチが main にマージされた push
+#  - 手動実行（任意）
 on:
+  push:
+    branches:
+      - main
+    # version.txt の更新を検知
+    paths:
+      - 'version.txt'
+      - 'release/release.ino'
   workflow_dispatch:
-    inputs:
-      bump:
-        description: 'どちらをカウントアップするか'
-        required: true
-        type: choice
-        options:
-          - minor
-          - major
+
+permissions:
+  contents: write     # リリース作成／アセット添付に必要
+  issues: read
+  pull-requests: write
 
 jobs:
-  bump:
-    uses: ./.github/workflows/wf-version-bump.yml
-    with:
-      bump: ${{ github.event.inputs.bump }}
+  release:
+    name: Create & Publish Release
+    runs-on: ubuntu-latest
 
-  build_release:
-    needs: bump
-    uses: ./.github/workflows/wf-build.yml
-    with:
-      version: ${{ needs.bump.outputs.new }}
+    steps:
+      # 1. リポジトリを取得（マージ後の main ブランチ）
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  upload_assets:
-    needs: build_release
-    uses: ./.github/workflows/wf-artifact-upload.yml
-    with:
-      version: ${{ needs.bump.outputs.new }}
+      # 2. 変更済みタグ取得 → 直前タグとの差分でリリースノート生成
+      - name: Determine new version tag
+        id: tag
+        run: |
+          # version.txt に書かれたタグを使う
+          NEW_TAG="v$(cat version.txt)"
+          echo "new=$NEW_TAG" >> $GITHUB_OUTPUT
 
-  notify:
-    needs: upload_assets
-    uses: ./.github/workflows/wf-notify.yml
-    with:
-      version: ${{ needs.bump.outputs.new }}
+      - name: Fetch previous tag
+        id: prev_tag
+        run: |
+          # マージ前の最新タグを取得
+          PREV_TAG=$(git describe --tags --abbrev=0 "$NEW_TAG^")
+          echo "prev=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          NOTES=$(git log ${{ steps.prev_tag.outputs.prev }}..${{ steps.tag.outputs.new }} --pretty=format:'- %s' )
+          echo "notes<<EOF\n$NOTES\nEOF" >> $GITHUB_OUTPUT
+
+      # 3. GitHub リリースをドラフト作成
+      - name: Create Draft Release
+        uses: actions/create-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ steps.tag.outputs.new }}
+          name: Release ${{ steps.tag.outputs.new }}
+          body: ${{ steps.changelog.outputs.notes }}
+          draft: true
+          prerelease: false
+
+      # 4. Arduino CLI セットアップ
+      - name: Install Arduino CLI
+        uses: arduino/setup-cli@v1
+
+      - name: Install ESP32 platform
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      # 5. Build release sketch
+      - name: Build release/release.ino
+        run: |
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32 \
+            --output-dir build/release \
+            release/release.ino
+
+      # 6. Package binaries
+      - name: Package binary artifacts
+        run: |
+          mkdir -p release-artifacts
+          zip -j release-artifacts/release-${{ steps.tag.outputs.new }}.zip build/release/*.bin
+
+      # 7. Upload to draft release
+      - name: Upload Release Asset
+        uses: softprops/action-upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create-release.outputs.upload_url }}
+          asset_path: release-artifacts/release-${{ steps.tag.outputs.new }}.zip
+          asset_name: release-${{ steps.tag.outputs.new }}.zip
+          asset_content_type: application/zip
+
+      # 8. Slack 通知 (成功)
+      - name: Notify Slack
+        if: ${{ success() }}
+        uses: rtCamp/action-slack-notify@v2
+        with:
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          status: success
+          message: |
+            Release ${{ steps.tag.outputs.new }} has been created and artifacts uploaded.
+
+      # 8b. Slack 通知 (失敗)
+      - name: Notify Slack on failure
+        if: ${{ failure() }}
+        uses: rtCamp/action-slack-notify@v2
+        with:
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          status: failure
+          message: |
+            Release automation for ${{ steps.tag.outputs.new }} failed. Please check the logs.

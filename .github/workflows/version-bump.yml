@@ -1,0 +1,87 @@
+# .github/workflows/version-bump.yml
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Which part to bump: "minor" or "major"'
+        required: true
+        type: choice
+        options:
+          - minor
+          - major
+
+jobs:
+  bump:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write    # for pushing tags & branches
+      pull-requests: write
+    outputs:
+      new-version: ${{ steps.bump.outputs.new }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Read latest tag
+        id: get-tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          echo "latest=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump
+        run: |
+          LATEST=${{ steps.get-tag.outputs.latest }}
+          # strip leading 'v'
+          BASE=${LATEST#v}
+          IFS='.' read MAJOR MINOR <<< "$BASE"
+
+          if [ "${{ inputs.bump }}" = "major" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+          else
+            MINOR=$((MINOR + 1))
+          fi
+
+          NEW="v${MAJOR}.${MINOR}"
+          echo "Calculated new version: $NEW"
+          echo "$NEW" > version.txt
+          sed -i -E "s/^#define VERSION \".*\"/#define VERSION \"${NEW#v}\"/" release/release.ino
+
+          echo "new=$NEW" >> $GITHUB_OUTPUT
+
+      - name: Create & push release branch
+        run: |
+          BRANCH="release/${{ steps.bump.outputs.new }}"
+          git checkout -b "$BRANCH"
+          git add version.txt release/release.ino
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}"
+          git push --set-upstream origin "$BRANCH"
+
+      - name: Push new tag
+        run: |
+          git tag "${{ steps.bump.outputs.new }}"
+          git push origin "${{ steps.bump.outputs.new }}"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: bump version to ${{ steps.bump.outputs.new }}"
+          title: "Release ${{ steps.bump.outputs.new }}"
+          body: |
+            This PR prepares release ${{ steps.bump.outputs.new }}.
+          head: "release/${{ steps.bump.outputs.new }}"
+          base: main
