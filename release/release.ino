@@ -7,7 +7,7 @@
 #include "WiFi.h"
 
 // 現在のバージョン
-const double current_version = 5.2;
+const double current_version = 5.3;
 
 void setup() {
   Serial.begin(115200);
