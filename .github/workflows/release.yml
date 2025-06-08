@@ -128,16 +128,16 @@ jobs:
 
       - name: Build release sketch
         run: |
-          mkdir -p ${env.SKETCH_DIR}/build
+          mkdir -p ${{ env.SKETCH_DIR }}/build
           arduino-cli compile \
             --fqbn esp32:esp32:esp32 \
-            --build-path ${env.SKETCH_DIR}/build \
-            ${env.SKETCH_DIR}/release.ino
+            --build-path ${{ env.SKETCH_DIR }}/build \
+            ${{ env.SKETCH_DIR }}/release.ino
 
       - name: Rename release binary
         run: |
           mkdir -p release-${{ steps.release_tag.outputs.release_tag }}
-          mv ${env.SKETCH_DIR}/build/${env.SKETCH_DIR}.ino.bin release-${{ steps.release_tag.outputs.release_tag }}/firmware.bin
+          mv ${{ env.SKETCH_DIR }}/build/${{ env.SKETCH_DIR }}.ino.bin release-${{ steps.release_tag.outputs.release_tag }}/firmware.bin
 
       - name: Create ZIP archive
         run: |
