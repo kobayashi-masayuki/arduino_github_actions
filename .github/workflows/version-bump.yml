@@ -58,10 +58,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create release branch
-        run: |
-          git checkout -b release/${{ steps.calculate-new.outputs.new }}
-
       - name: Update version files
         id: bump-files
         run: |
@@ -69,13 +65,8 @@ jobs:
           echo "${{ steps.calculate-new.outputs.new }}" > version.txt
           # release/release.ino の定義を書き換え
           sed -i -E \
-            "s/^#define VERSION \".*\"/#define VERSION \"${{ steps.calculate-new.outputs.new }}\"/" \
+            "s|(const double current_version *= *)[0-9]+\.[0-9]+(;)|\1${{ steps.calculate-new.outputs.new }}\2|" \
             release/release.ino
-
-      - name: Push new tag
-        run: |
-          git tag "${{ steps.calculate-new.outputs.new }}"
-          git push origin "${{ steps.calculate-new.outputs.new }}"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
