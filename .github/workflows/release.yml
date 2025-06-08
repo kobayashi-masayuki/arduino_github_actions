@@ -1,116 +1,102 @@
 # .github/workflows/release.yml
 name: Release Automation
 
-# トリガー:
-#  - release ブランチが main にマージされた push
-#  - 手動実行（任意）
 on:
-  push:
+  pull_request:
+    # PRが閉じたタイミングで実行
+    types:
+      - closed
+    # mainブランチのみを対象とする
     branches:
       - main
-    # version.txt の更新を検知
-    paths:
-      - 'version.txt'
-      - 'release/release.ino'
-  workflow_dispatch:
 
 permissions:
-  contents: write     # リリース作成／アセット添付に必要
-  issues: read
-  pull-requests: write
+  contents: read
 
 jobs:
   release:
-    name: Create & Publish Release
+    permissions:
+      # write permission is required to create a github release
+      contents: write
+      # リリースノートを書くためwrite用のpermissionを付与
+      pull-requests: write
+    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'release')
     runs-on: ubuntu-latest
 
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TZ: "Asia/Tokyo"
+
     steps:
-      # 1. リポジトリを取得（マージ後の main ブランチ）
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      # 2. 変更済みタグ取得 → 直前タグとの差分でリリースノート生成
-      - name: Determine new version tag
-        id: tag
+      # 前回のリリースタグを取得する
+      - name: Get previous tag
+        id: pre_tag
         run: |
-          # version.txt に書かれたタグを使う
-          NEW_TAG="v$(cat version.txt)"
-          echo "new=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "pre_tag=$(curl -H 'Accept: application/vnd.github.v3+json' -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)" >> $GITHUB_OUTPUT
 
-      - name: Fetch previous tag
-        id: prev_tag
+      # タグを生成する。バージョンファイルの内容をもとに、生成する。例： v4.10
+      - name: Generate tag
+        id: release_tag
         run: |
-          # マージ前の最新タグを取得
-          PREV_TAG=$(git describe --tags --abbrev=0 "$NEW_TAG^")
-          echo "prev=$PREV_TAG" >> $GITHUB_OUTPUT
+          release_version=$(cat version.txt | tr -d '\n')
+          echo "release_tag=$release_version" >> $GITHUB_OUTPUT
 
-      - name: Generate changelog
-        id: changelog
+      # PRのDescriptionを取得しマークダウン形式に変換する
+      - name: Get pr description
+        id: pr_description
         run: |
-          NOTES=$(git log ${{ steps.prev_tag.outputs.prev }}..${{ steps.tag.outputs.new }} --pretty=format:'- %s' )
-          echo "notes<<EOF\n$NOTES\nEOF" >> $GITHUB_OUTPUT
+          echo "pr_description=$(curl -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+            'https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number}}' \
+            | jq .body | awk '{if ($0 == "null") print ""; else print}')" >> $GITHUB_OUTPUT
 
-      # 3. GitHub リリースをドラフト作成
-      - name: Create Draft Release
-        uses: actions/create-release@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ steps.tag.outputs.new }}
-          name: Release ${{ steps.tag.outputs.new }}
-          body: ${{ steps.changelog.outputs.notes }}
-          draft: true
-          prerelease: false
-
-      # 4. Arduino CLI セットアップ
-      - name: Install Arduino CLI
-        uses: arduino/setup-cli@v1
-
-      - name: Install ESP32 platform
+      # 前回リリースからの差分をもとに、変更点を取得する
+      - name: Generate release note changes
+        id: changes
         run: |
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32
+          echo "changes=$(
+          curl -X POST \
+            -H 'Accept: application/vnd.github.v3+json' \
+            -H 'Authorization: token ${{ secrets.GITHUB_TOKEN }}' \
+            https://api.github.com/repos/${{ github.repository }}/releases/generate-notes \
+            -d '{
+              "tag_name": "${{ steps.release_tag.outputs.release_tag }}",
+              "previous_tag_name": "${{ steps.pre_tag.outputs.pre_tag }}",
+              "target_commitish": "main"
+            }' | jq .body
+          )" >> $GITHUB_OUTPUT
 
-      # 5. Build release sketch
-      - name: Build release/release.ino
+      # リリースノートの本文を作成する
+      - name: Create release note body
+        id: release_note_body
         run: |
-          arduino-cli compile \
-            --fqbn esp32:esp32:esp32 \
-            --output-dir build/release \
-            release/release.ino
+          echo "release_note_body=$(echo \
+            ${{ steps.pr_description.outputs.pr_description }} \
+            ${{ steps.changes.outputs.changes }} \
+            | sed 's/\\"//g' | sed 's/["“]//g')" >> $GITHUB_OUTPUT
 
-      # 6. Package binaries
-      - name: Package binary artifacts
+      # タグを切り、リリースノートを作成する
+      # PRのラベルに応じてカテゴライズする場合は、使用先のリポジトリで下記を定義する
+      # https://docs.github.com/ja/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuring-automatically-generated-release-notes
+      - name: Create Release
         run: |
-          mkdir -p release-artifacts
-          zip -j release-artifacts/release-${{ steps.tag.outputs.new }}.zip build/release/*.bin
-
-      # 7. Upload to draft release
-      - name: Upload Release Asset
-        uses: softprops/action-upload-release-asset@v1
-        with:
-          upload_url: ${{ steps.create-release.outputs.upload_url }}
-          asset_path: release-artifacts/release-${{ steps.tag.outputs.new }}.zip
-          asset_name: release-${{ steps.tag.outputs.new }}.zip
-          asset_content_type: application/zip
-
-      # 8. Slack 通知 (成功)
-      - name: Notify Slack
-        if: ${{ success() }}
-        uses: rtCamp/action-slack-notify@v2
-        with:
-          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          status: success
-          message: |
-            Release ${{ steps.tag.outputs.new }} has been created and artifacts uploaded.
-
-      # 8b. Slack 通知 (失敗)
-      - name: Notify Slack on failure
-        if: ${{ failure() }}
-        uses: rtCamp/action-slack-notify@v2
-        with:
-          webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          status: failure
-          message: |
-            Release automation for ${{ steps.tag.outputs.new }} failed. Please check the logs.
+          response=$(curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d "{ \
+              \"tag_name\": \"${{ steps.release_tag.outputs.release_tag }}\", \
+              \"target_commitish\": \"main\", \
+              \"name\": \"${{ steps.release_tag.outputs.release_tag }}\", \
+              \"body\": \"${{ steps.release_note_body.outputs.release_note_body }}\" \
+            }" \
+            -w "%{http_code}" \
+            -o response_body.txt \
+            https://api.github.com/repos/${{ github.repository }}/releases)
+            status_code=$(tail -n1 <<< "$response")
+            echo "Status Code: $status_code"
+            body=$(cat response_body.txt)
+            echo "Response Body: $body"
+            if [ $status_code -ne 201 ]; then
+              echo "Failed to create release"
+              exit 1
+            fi
