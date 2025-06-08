@@ -83,8 +83,10 @@ jobs:
       - name: Create Release
         id: create_release
         run: |
-          response=$(curl -X POST \
+          # 1) リリース作成 API を叩いて、ボディだけ response_body.txt に、ステータスコードだけ status_code に格納
+          status_code=$(curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
             -d "{ \
               \"tag_name\": \"${{ steps.release_tag.outputs.release_tag }}\", \
               \"target_commitish\": \"main\", \
@@ -94,14 +96,22 @@ jobs:
             -w "%{http_code}" \
             -o response_body.txt \
             https://api.github.com/repos/${{ github.repository }}/releases)
-            status_code=$(tail -n1 <<< "$response")
-            echo "Status Code: $status_code"
-            echo "$response" > response.json
-            # upload_url に含まれる {?name,label} 部分は不要なので取り除く
-            upload_url=$(jq -r .upload_url response.json | sed 's/\{\?name,label\}$//')
-            release_id=$(jq -r .id response.json)
-            echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
-            echo "release_id=$release_id" >> $GITHUB_OUTPUT
+
+          echo "Status Code: $status_code"
+          if [ "$status_code" -ne 201 ]; then
+            echo "Failed to create release:"
+            cat response_body.txt
+            exit 1
+          fi
+
+          # 2) ボディから upload_url と release_id を抽出
+          # ── upload_url は "{?name,label}" がついてくるので末尾を取り除く
+          upload_url=$(jq -r .upload_url response_body.txt \
+            | sed -E 's/\{\?name,label\}$//')
+          release_id=$(jq -r .id response_body.txt)
+
+          echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
+          echo "release_id=$release_id" >> $GITHUB_OUTPUT
 
       # ── ここからバイナリ生成＋アセットアップロード ──
 
