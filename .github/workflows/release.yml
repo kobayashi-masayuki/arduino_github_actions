@@ -136,12 +136,11 @@ jobs:
 
       - name: Rename release binary
         run: |
-          mkdir -p release-${{ steps.release_tag.outputs.release_tag }}
-          mv ${{ env.SKETCH_DIR }}/build/${{ env.SKETCH_DIR }}.ino.bin release-${{ steps.release_tag.outputs.release_tag }}/firmware.bin
+          mv ${{ env.SKETCH_DIR }}/build/${{ env.SKETCH_DIR }}.ino.bin firmware.bin
 
       - name: Create ZIP archive
         run: |
-          zip -r release-${{ steps.release_tag.outputs.release_tag }}.zip release-${{ steps.release_tag.outputs.release_tag }} version.txt
+          zip -r release-${{ steps.release_tag.outputs.release_tag }}.zip firmware.bin version.txt
 
       - name: Upload release asset via gh release
         env:
