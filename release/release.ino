@@ -6,7 +6,7 @@
  */
 #include "WiFi.h"
 
-#define VERSION 4.9  // 現在のバージョン
+const double current_version = v4.11;  // 現在のバージョン
 
 void setup() {
   Serial.begin(115200);
