@@ -40,6 +40,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Create release branch
+        run: |
+          BRANCH="release/${{ steps.bump.outputs.new }}"
+          git checkout -b "$BRANCH"
+
       - name: Bump version
         id: bump
         run: |
@@ -62,13 +67,11 @@ jobs:
 
           echo "new=$NEW" >> $GITHUB_OUTPUT
 
-      - name: Create & push release branch
+      - name: Push release branch
         run: |
-          BRANCH="release/${{ steps.bump.outputs.new }}"
-          git checkout -b "$BRANCH"
           git add version.txt release/release.ino
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}"
-          git push --set-upstream origin "$BRANCH"
+          git push --set-upstream origin "release/${{ steps.bump.outputs.new }}"
 
       - name: Push new tag
         run: |
