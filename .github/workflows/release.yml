@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+env:
+  SKETCH_DIR: release
+
 jobs:
   release:
     permissions:
@@ -77,9 +80,8 @@ jobs:
             | sed 's/\\"//g' | sed 's/["“]//g')" >> $GITHUB_OUTPUT
 
       # タグを切り、リリースノートを作成する
-      # PRのラベルに応じてカテゴライズする場合は、使用先のリポジトリで下記を定義する
-      # https://docs.github.com/ja/repositories/releasing-projects-on-github/automatically-generated-release-notes#configuring-automatically-generated-release-notes
       - name: Create Release
+        id: create_release
         run: |
           response=$(curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
@@ -94,9 +96,47 @@ jobs:
             https://api.github.com/repos/${{ github.repository }}/releases)
             status_code=$(tail -n1 <<< "$response")
             echo "Status Code: $status_code"
-            body=$(cat response_body.txt)
-            echo "Response Body: $body"
-            if [ $status_code -ne 201 ]; then
-              echo "Failed to create release"
-              exit 1
-            fi
+            echo "$response" > response.json
+            # upload_url に含まれる {?name,label} 部分は不要なので取り除く
+            upload_url=$(jq -r .upload_url response.json | sed 's/\{\?name,label\}$//')
+            release_id=$(jq -r .id response.json)
+            echo "upload_url=$upload_url" >> $GITHUB_OUTPUT
+            echo "release_id=$release_id" >> $GITHUB_OUTPUT
+
+      # ── ここからバイナリ生成＋アセットアップロード ──
+
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: '1.2.2'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install ESP32 platform
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Build release sketch
+        run: |
+          mkdir -p ${env.SKETCH_DIR}/build
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32 \
+            --build-path ${env.SKETCH_DIR}/build \
+            ${env.SKETCH_DIR}/release.ino
+
+      - name: Rename release binary
+        run: |
+          mkdir -p release-${{ steps.release_tag.outputs.release_tag }}
+          mv ${env.SKETCH_DIR}/build/${env.SKETCH_DIR}.ino.bin release-${{ steps.release_tag.outputs.release_tag }}/firmware.bin
+
+      - name: Create ZIP archive
+        run: |
+          zip -r release-${{ steps.release_tag.outputs.release_tag }}.zip release-${{ steps.release_tag.outputs.release_tag }} version.txt
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: release-${{ steps.release_tag.outputs.release_tag }}.zip
+          asset_name: release-${{ steps.release_tag.outputs.release_tag }}.zip
+          asset_content_type: application/zip
