@@ -143,16 +143,9 @@ jobs:
         run: |
           zip -r release-${{ steps.release_tag.outputs.release_tag }}.zip release-${{ steps.release_tag.outputs.release_tag }} version.txt
 
-      - name: Upload Release Asset via gh
+      - name: Upload release asset via gh release
         env:
-          RELEASE_ID: ${{ steps.create_release.outputs.release_id }}
-          REPO: ${{ github.repository }}
           TAG: ${{ steps.release_tag.outputs.release_tag }}
         run: |
           ASSET="release-${TAG}.zip"
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${REPO}/releases/${RELEASE_ID}/assets?name=${ASSET} \
-            -f "@${ASSET}"
+          gh release upload ${TAG} "${ASSET}"
