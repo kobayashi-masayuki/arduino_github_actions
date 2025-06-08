@@ -91,5 +91,5 @@ jobs:
           title: "Release ${{ steps.calculate-new.outputs.new }}"
           body: |
             This PR prepares release ${{ steps.calculate-new.outputs.new }}.
-          head: "release/${{ steps.calculate-new.outputs.new }}"
+          branch: "release/${{ steps.calculate-new.outputs.new }}"
           base: main
