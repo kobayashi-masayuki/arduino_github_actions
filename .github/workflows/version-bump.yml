@@ -35,21 +35,10 @@ jobs:
           TAG=$(git describe --tags --abbrev=0)
           echo "latest=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Configure Git user
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Create release branch
-        run: |
-          BRANCH="release/${{ steps.bump.outputs.new }}"
-          git checkout -b "$BRANCH"
-
-      - name: Bump version
-        id: bump
+      - name: Calculate new version
+        id: calculate-new
         run: |
           LATEST=${{ steps.get-tag.outputs.latest }}
-          # strip leading 'v'
           BASE=${LATEST#v}
           IFS='.' read MAJOR MINOR <<< "$BASE"
 
@@ -62,29 +51,45 @@ jobs:
 
           NEW="v${MAJOR}.${MINOR}"
           echo "Calculated new version: $NEW"
-          echo "$NEW" > version.txt
-          sed -i -E "s/^#define VERSION \".*\"/#define VERSION \"${NEW#v}\"/" release/release.ino
-
           echo "new=$NEW" >> $GITHUB_OUTPUT
+
+      - name: Configure Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create release branch
+        run: |
+          git checkout -b release/${{ steps.calculate-new.outputs.new }}
+
+      - name: Update version files
+        id: bump-files
+        run: |
+          # version.txt
+          echo "${{ steps.calculate-new.outputs.new }}" > version.txt
+          # release/release.ino の定義を書き換え
+          sed -i -E \
+            "s/^#define VERSION \".*\"/#define VERSION \"${{ steps.calculate-new.outputs.new }}\"/" \
+            release/release.ino
 
       - name: Push release branch
         run: |
           git add version.txt release/release.ino
-          git commit -m "chore: bump version to ${{ steps.bump.outputs.new }}"
-          git push --set-upstream origin "release/${{ steps.bump.outputs.new }}"
+           git commit -m "chore: bump version to ${{ steps.calculate-new.outputs.new }}"
+            git push --set-upstream origin release/${{ steps.calculate-new.outputs.new }}
 
       - name: Push new tag
         run: |
-          git tag "${{ steps.bump.outputs.new }}"
-          git push origin "${{ steps.bump.outputs.new }}"
+          git tag "${{ steps.calculate-new.outputs.new }}"
+          git push origin "${{ steps.calculate-new.outputs.new }}"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: bump version to ${{ steps.bump.outputs.new }}"
-          title: "Release ${{ steps.bump.outputs.new }}"
+          commit-message: "chore: bump version to ${{ steps.calculate-new.outputs.new }}"
+          title: "Release ${{ steps.calculate-new.outputs.new }}"
           body: |
-            This PR prepares release ${{ steps.bump.outputs.new }}.
-          head: "release/${{ steps.bump.outputs.new }}"
+            This PR prepares release ${{ steps.calculate-new.outputs.new }}.
+          head: "release/${{ steps.calculate-new.outputs.new }}"
           base: main
